@@ -70,13 +70,16 @@ export const properties = sqliteTable('properties', {
   city: text('city').notNull(),
   state: text('state'),
   zipCode: text('zip_code'),
-  bedrooms: integer('bedrooms').default(0),
+  bedrooms: integer('bedrooms').default(0), // BHK
   bathrooms: real('bathrooms').default(0),
   squareFeet: real('square_feet'),
   furnishingStatus: text('furnishing_status').default('UNFURNISHED'), // FURNISHED, SEMI_FURNISHED, UNFURNISHED
   monthlyRent: real('monthly_rent'),
   salePrice: real('sale_price'),
   depositAmount: real('deposit_amount'),
+  maintenanceAmount: real('maintenance_amount').default(0), // Phase 3 field
+  availableFrom: text('available_from'), // Phase 3 field
+  photos: text('photos').default('[]'), // Phase 3 JSON array string
   status: text('status').notNull().default('AVAILABLE'), // AVAILABLE, OCCUPIED, RESERVED
   isVerifiedManually: integer('is_verified_manually', { mode: 'boolean' }).notNull().default(false),
   createdAt: text('created_at').notNull().default(sql`(CURRENT_TIMESTAMP)`),
@@ -106,7 +109,7 @@ export const requirements = sqliteTable('requirements', {
   customerId: text('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
   intent: text('intent').notNull(), // RENT, BUY
   propertyType: text('property_type'), // APARTMENT, VILLA, STUDIO, COMMERCIAL
-  minBedrooms: integer('min_bedrooms'),
+  minBedrooms: integer('min_bedrooms'), // BHK
   minBathrooms: real('min_bathrooms'),
   preferredCities: text('preferred_cities'), // JSON array string
   preferredLocations: text('preferred_locations'), // JSON array string
@@ -114,6 +117,8 @@ export const requirements = sqliteTable('requirements', {
   maxBudget: real('max_budget'),
   furnishingStatus: text('furnishing_status'),
   moveInDate: text('move_in_date'),
+  occupancyType: text('occupancy_type'), // FAMILY, BACHELOR, COMPANY, ANY (Phase 3 field)
+  specialRequirements: text('special_requirements'), // Phase 3 field
   notes: text('notes'),
   isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
   isVerifiedManually: integer('is_verified_manually', { mode: 'boolean' }).notNull().default(false),
@@ -125,14 +130,15 @@ export const requirements = sqliteTable('requirements', {
   index('idx_requirements_customer_id').on(table.customerId),
 ]);
 
-// 8. leads
+// 8. leads (Full Phase 3 pipeline)
 export const leads = sqliteTable('leads', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   customerId: text('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
   requirementId: text('requirement_id').references(() => requirements.id, { onDelete: 'set null' }),
   matchedPropertyId: text('matched_property_id').references(() => properties.id, { onDelete: 'set null' }),
   assignedUserId: text('assigned_user_id').references(() => users.id, { onDelete: 'set null' }),
-  stage: text('stage').notNull().default('NEW'), // NEW, CONTACTED, QUALIFIED, VISIT_SCHEDULED, NEGOTIATION, WON, LOST
+  // Phase 3 Pipeline Stages: NEW, CONTACTED, QUALIFIED, PROPERTIES_SENT, VISIT_SCHEDULED, VISITED, NEGOTIATION, CLOSED, LOST, NOT_INTERESTED, ON_HOLD
+  stage: text('stage').notNull().default('NEW'),
   priority: text('priority').notNull().default('MEDIUM'), // LOW, MEDIUM, HIGH, URGENT
   score: integer('score').default(0),
   lostReason: text('lost_reason'),

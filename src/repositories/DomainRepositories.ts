@@ -4,7 +4,11 @@ import { eq } from 'drizzle-orm';
 
 export class PropertyRepository {
   createProperty(data: any, dbTx = db) {
-    const [newProperty] = dbTx.insert(properties).values(data).returning().all();
+    const payload = {
+      ...data,
+      photos: Array.isArray(data.photos) ? JSON.stringify(data.photos) : (data.photos || '[]'),
+    };
+    const [newProperty] = dbTx.insert(properties).values(payload).returning().all();
     return newProperty;
   }
 
@@ -30,6 +34,34 @@ export class RequirementRepository {
 
   getRequirementById(id: string, dbTx = db) {
     return dbTx.select().from(requirements).where(eq(requirements.id, id)).get();
+  }
+
+  listRequirements(dbTx = db) {
+    return dbTx.select().from(requirements).all();
+  }
+}
+
+export class LeadRepository {
+  createLead(data: any, dbTx = db) {
+    const [newLead] = dbTx.insert(leads).values(data).returning().all();
+    return newLead;
+  }
+
+  updateLeadStage(id: string, stage: string, lostReason?: string, dbTx = db) {
+    dbTx.update(leads)
+      .set({
+        stage,
+        lostReason: lostReason || null,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(leads.id, id))
+      .run();
+
+    return dbTx.select().from(leads).where(eq(leads.id, id)).get();
+  }
+
+  listLeads(dbTx = db) {
+    return dbTx.select().from(leads).all();
   }
 }
 

@@ -1,6 +1,6 @@
 import { db } from '../db/index.js';
 import { ContactRepository } from '../repositories/ContactRepository.js';
-import { PropertyRepository, RequirementRepository, InteractionRepository } from '../repositories/DomainRepositories.js';
+import { PropertyRepository, RequirementRepository, LeadRepository, InteractionRepository } from '../repositories/DomainRepositories.js';
 import { ExtractionEngine } from '../ai/ExtractionEngine.js';
 import { sourceRecords, extractionRuns, requirements } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
@@ -9,6 +9,7 @@ export class DomainService {
   private contactRepo = new ContactRepository();
   private propertyRepo = new PropertyRepository();
   private requirementRepo = new RequirementRepository();
+  private leadRepo = new LeadRepository();
   private interactionRepo = new InteractionRepository();
   private aiEngine = new ExtractionEngine();
   private dbConn: any;
@@ -52,14 +53,66 @@ export class DomainService {
     });
   }
 
-  // Rule #5: Create property belonging to owner
+  // Rule #5: Phase 3 Create property belonging to owner
   createProperty(propertyData: any) {
-    return this.propertyRepo.createProperty(propertyData, this.dbConn);
+    return this.dbConn.transaction((tx: any) => {
+      let ownerId = propertyData.ownerId;
+      if (!ownerId && propertyData.ownerPhoneRaw) {
+        const ownerRole = this.createOwner({
+          phoneRaw: propertyData.ownerPhoneRaw,
+          firstName: propertyData.ownerName || 'Owner',
+        });
+        ownerId = ownerRole.id;
+      }
+      if (!ownerId) {
+        throw new Error('Owner ID or valid Owner Phone Number is required.');
+      }
+
+      return this.propertyRepo.createProperty({
+        ...propertyData,
+        ownerId,
+      }, tx);
+    });
   }
 
-  // Rule #6: Create requirement belonging to customer
+  // Rule #6: Phase 3 Create requirement belonging to customer
   createRequirement(requirementData: any) {
-    return this.requirementRepo.createRequirement(requirementData, this.dbConn);
+    return this.dbConn.transaction((tx: any) => {
+      let customerId = requirementData.customerId;
+      if (!customerId && requirementData.customerPhoneRaw) {
+        const customerRole = this.createCustomer({
+          phoneRaw: requirementData.customerPhoneRaw,
+          firstName: requirementData.customerName || 'Customer',
+        });
+        customerId = customerRole.id;
+      }
+      if (!customerId) {
+        throw new Error('Customer ID or valid Customer Phone Number is required.');
+      }
+
+      const req = this.requirementRepo.createRequirement({
+        ...requirementData,
+        customerId,
+      }, tx);
+
+      // Auto-create initial Lead record for pipeline tracking
+      this.leadRepo.createLead({
+        customerId,
+        requirementId: req.id,
+        stage: 'NEW',
+      }, tx);
+
+      return req;
+    });
+  }
+
+  // Phase 3 Lead Stage Transition
+  updateLeadStage(leadId: string, stage: string, lostReason?: string) {
+    return this.leadRepo.updateLeadStage(leadId, stage, lostReason, this.dbConn);
+  }
+
+  listLeads() {
+    return this.leadRepo.listLeads(this.dbConn);
   }
 
   // Rule #7: Record interaction (call or message)
@@ -96,22 +149,18 @@ export class DomainService {
 
   // Rule #8, 9, 10: Process text extraction preserving source record & confidence without overwriting verified info
   async processUnstructuredInput(phoneRaw: string, inputText: string, providerName?: any) {
-    // Perform AI extraction outside database transaction
     const extraction = await this.aiEngine.extract(inputText, providerName);
 
     return this.dbConn.transaction((tx: any) => {
-      // 1. Create canonical contact
       const contact = this.contactRepo.findOrCreateContact(phoneRaw, {}, tx);
       const customer = this.contactRepo.getOrCreateCustomerRole(contact.id, 'TENANT', undefined, tx);
 
-      // 2. Save source record (Rule #8)
       const [sourceRec] = tx.insert(sourceRecords).values({
         sourceType: 'MANUAL',
         senderIdentifier: phoneRaw,
         payload: JSON.stringify({ inputText }),
       }).returning().all();
 
-      // 3. Save extraction run (Rule #9)
       const [extractionRun] = tx.insert(extractionRuns).values({
         sourceRecordId: sourceRec.id,
         providerName: extraction.providerName,
@@ -121,7 +170,6 @@ export class DomainService {
         status: extraction.confidenceScore >= 0.85 ? 'AUTO_COMMITTED' : 'PENDING_HUMAN_REVIEW',
       }).returning().all();
 
-      // 4. Rule #10: Check if customer requirement is already manually verified
       const existingReq = tx.select().from(requirements).where(eq(requirements.customerId, customer.id)).get();
 
       if (existingReq && existingReq.isVerifiedManually) {
@@ -135,7 +183,6 @@ export class DomainService {
         };
       }
 
-      // Create requirement
       const reqData = {
         customerId: customer.id,
         intent: extraction.requirement?.intent || 'RENT',

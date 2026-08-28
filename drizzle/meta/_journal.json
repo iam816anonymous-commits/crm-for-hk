@@ -8,6 +8,13 @@
       "when": 1787867172132,
       "tag": "0000_abnormal_harrier",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1787889732062,
+      "tag": "0001_foamy_alice",
+      "breakpoints": true
     }
   ]
 }

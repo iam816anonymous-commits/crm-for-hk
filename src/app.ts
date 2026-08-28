@@ -11,6 +11,7 @@ import {
   CreateOwnerSchema,
   CreatePropertySchema,
   CreateRequirementSchema,
+  UpdateLeadStageSchema,
   CreateInteractionSchema,
 } from './schemas/validation.js';
 
@@ -114,6 +115,28 @@ export function createApp(customDb = defaultDb) {
       const validated = CreateRequirementSchema.parse(req.body);
       const requirement = domainService.createRequirement(validated);
       res.status(201).json({ success: true, data: requirement });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Leads API: List Leads
+  app.get('/api/leads', (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const leadsList = domainService.listLeads();
+      res.status(200).json({ success: true, data: leadsList });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Leads API: Transition Lead Stage (Phase 3 Pipeline)
+  app.patch('/api/leads/:id/stage', (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const leadId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const validated = UpdateLeadStageSchema.parse(req.body);
+      const updatedLead = domainService.updateLeadStage(leadId, validated.stage, validated.lostReason);
+      res.status(200).json({ success: true, data: updatedLead });
     } catch (error) {
       next(error);
     }
