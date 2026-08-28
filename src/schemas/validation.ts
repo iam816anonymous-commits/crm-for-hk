@@ -127,3 +127,25 @@ export const IngestCallLogSchema = z.object({
   timestampMs: z.number().optional(),
   deviceId: z.string().optional(),
 });
+
+// Phase 9 Mode B: Permitted Audio Recording Upload Schema
+export const UploadAudioRecordingSchema = z.object({
+  phoneRaw: z.string().min(5, 'phoneRaw must be at least 5 characters'),
+  audioBase64: z.string().optional(),
+  filename: z.string().default('recording.mp3'),
+  mimeType: z.string().default('audio/mpeg'),
+  userConsent: z.boolean().refine(val => val === true, {
+    message: 'Explicit user consent (userConsent = true) is required to process call recordings.',
+  }),
+});
+
+// Phase 9 Mode C: Telephony Webhook Ingestion Schema
+export const TelephonyWebhookSchema = z.object({
+  callSid: z.string().min(1, 'callSid is required'),
+  fromNumber: z.string().min(5, 'fromNumber is required'),
+  toNumber: z.string().min(5, 'toNumber is required'),
+  durationSeconds: z.number().int().min(0).default(0),
+  recordingUrl: z.string().url().optional(),
+  transcriptText: z.string().optional(),
+  callStatus: z.enum(['COMPLETED', 'BUSY', 'NO_ANSWER', 'FAILED', 'MISSED']).default('COMPLETED'),
+});

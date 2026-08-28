@@ -16,7 +16,10 @@ import {
   UpdateLeadStageSchema,
   CreateInteractionSchema,
   IngestCallLogSchema,
+  UploadAudioRecordingSchema,
+  TelephonyWebhookSchema,
 } from './schemas/validation.js';
+import { CallIntelligenceService } from './services/CallIntelligenceService.js';
 
 export function createApp(customDb = defaultDb) {
   const app = express();
@@ -41,6 +44,49 @@ export function createApp(customDb = defaultDb) {
     try {
       const stats = await dashboardService.getStats(customDb);
       res.status(200).json({ success: true, data: stats });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Phase 9 Mode B: Permitted User Audio Recording Upload Endpoint
+  app.post('/api/calls/upload-recording', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = UploadAudioRecordingSchema.parse(req.body);
+      const callIntelService = new CallIntelligenceService(customDb);
+
+      const buffer = validated.audioBase64
+        ? Buffer.from(validated.audioBase64, 'base64')
+        : Buffer.from('mock_audio_content');
+
+      const result = await callIntelService.processPermittedAudioUpload({
+        phoneRaw: validated.phoneRaw,
+        audioBuffer: buffer,
+        filename: validated.filename,
+        mimeType: validated.mimeType,
+        userConsent: validated.userConsent,
+      });
+
+      res.status(201).json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Phase 9 Mode C: Cloud Telephony Webhook Ingestion Endpoint (Twilio / Exotel)
+  app.post('/api/calls/telephony-webhook', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = TelephonyWebhookSchema.parse(req.body);
+      const callIntelService = new CallIntelligenceService(customDb);
+
+      const result = await callIntelService.processTelephonyWebhook(validated);
+
+      if (result.status === 'DUPLICATE') {
+        res.status(409).json({ success: false, error: 'Duplicate telephony webhook call SID', data: result.call });
+        return;
+      }
+
+      res.status(201).json({ success: true, data: result });
     } catch (error) {
       next(error);
     }
