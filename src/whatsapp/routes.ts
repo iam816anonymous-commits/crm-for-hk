@@ -1,11 +1,30 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
+import crypto from 'crypto';
 import { WhatsAppService } from './WhatsAppService.js';
 import { db } from '../db/index.js';
-import { sourceRecords, messages, requirements, contacts } from '../db/schema.js';
+import { sourceRecords, messages, requirements } from '../db/schema.js';
 import { eq, desc } from 'drizzle-orm';
 
 const router = Router();
 const whatsappService = new WhatsAppService();
+
+// HMAC Signature verification helper
+function verifyMetaSignature(req: Request): boolean {
+  const signature = req.headers['x-hub-signature-256'] as string;
+  const appSecret = process.env.META_APP_SECRET;
+
+  if (!appSecret || !signature) {
+    // Return true in development/test if secret is not configured
+    return true;
+  }
+
+  const expectedSignature = 'sha256=' + crypto
+    .createHmac('sha256', appSecret)
+    .update(JSON.stringify(req.body))
+    .digest('hex');
+
+  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature));
+}
 
 // GET /api/whatsapp/webhook - Meta verification handshake
 router.get('/webhook', (req, res) => {
@@ -24,12 +43,22 @@ router.get('/webhook', (req, res) => {
 // POST /api/whatsapp/webhook - Inbound webhook payload from Meta Cloud API
 router.post('/webhook', async (req, res) => {
   try {
+    // 1. Signature Verification
+    if (!verifyMetaSignature(req)) {
+      return res.status(401).json({ error: 'Invalid X-Hub-Signature-256 signature' });
+    }
+
     const payload = req.body;
+
+    // 2. Process payload idempotently & transaction-safely
     const results = await whatsappService.processMetaWebhook(payload);
+
+    // 3. Always return 200 OK to acknowledge Meta Webhook delivery within 3 seconds
     return res.status(200).json({ status: 'success', processed: results.length, data: results });
   } catch (error: any) {
     req.log?.error(error);
-    return res.status(500).json({ error: error.message || 'Failed to process WhatsApp webhook' });
+    // Return 200 OK even on soft errors to prevent Meta delivery block, while logging internal failure
+    return res.status(200).json({ status: 'acknowledged_with_error', error: error.message });
   }
 });
 
