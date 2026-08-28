@@ -3,6 +3,7 @@ import pino from 'pino';
 import pinoHttp from 'pino-http';
 import { ZodError } from 'zod';
 import { DomainService } from './services/DomainService.js';
+import { DashboardService } from './services/DashboardService.js';
 import { db as defaultDb } from './db/index.js';
 import {
   CreateContactSchema,
@@ -16,6 +17,7 @@ import {
 export function createApp(customDb = defaultDb) {
   const app = express();
   const domainService = new DomainService(customDb);
+  const dashboardService = new DashboardService();
   const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
   app.use(express.json());
@@ -24,6 +26,42 @@ export function createApp(customDb = defaultDb) {
   // Health endpoint
   app.get('/health', (req: Request, res: Response) => {
     res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
+  // Dashboard Stats endpoint
+  app.get('/api/dashboard/stats', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const stats = await dashboardService.getStats(customDb);
+      res.status(200).json({ success: true, data: stats });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Contact Search endpoint
+  app.get('/api/contacts/search', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const query = (req.query.q as string) || '';
+      const results = await dashboardService.searchContacts(query, customDb);
+      res.status(200).json({ success: true, data: results });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Contact Detailed Profile endpoint
+  app.get('/api/contacts/:id/details', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const contactId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const details = await dashboardService.getContactDetailedProfile(contactId, customDb);
+      if (!details) {
+        res.status(404).json({ success: false, error: 'Contact not found' });
+        return;
+      }
+      res.status(200).json({ success: true, data: details });
+    } catch (error) {
+      next(error);
+    }
   });
 
   // Contacts REST API
