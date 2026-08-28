@@ -94,16 +94,102 @@ export function WhatsAppView() {
     }
   };
 
+  const [reviewItems, setReviewItems] = React.useState<any[]>([
+    {
+      id: 'rev-1',
+      customerName: 'Ravi',
+      location: 'Whitefield',
+      bhk: 2,
+      budget: '₹20,000–₹25,000',
+      moveIn: 'September',
+      confidence: 91,
+      verified: false,
+    }
+  ]);
+
+  const handleApprove = (id: string) => {
+    setReviewItems(prev => prev.map(item => item.id === id ? { ...item, verified: true } : item));
+  };
+
+  const handleReject = (id: string) => {
+    setReviewItems(prev => prev.filter(item => item.id !== id));
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">WhatsApp Ingestion Engine</h1>
-          <p className="text-sm text-gray-500">Meta Cloud API Webhook Ingestion & Raw Message Traceability</p>
+          <h1 className="text-2xl font-bold text-gray-900">WhatsApp Ingestion & Human Approval Intelligence</h1>
+          <p className="text-sm text-gray-500">Meta Cloud API Webhook Ingestion, AI Extraction & Verification Queue</p>
         </div>
         <span className="bg-emerald-100 text-emerald-800 text-xs font-semibold px-3 py-1 rounded-full border border-emerald-300">
           ● Meta Webhook Active
         </span>
+      </div>
+
+      {/* Human Approval Review Queue */}
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 shadow-sm space-y-4">
+        <div className="flex items-center justify-between border-b border-amber-200 pb-3">
+          <div className="flex items-center gap-2">
+            <Shield className="w-5 h-5 text-amber-700" />
+            <h2 className="font-bold text-amber-900 text-base">Human Approval System (Prevent AI Garbage)</h2>
+          </div>
+          <span className="bg-amber-200 text-amber-900 text-xs font-bold px-2.5 py-1 rounded-full">
+            {reviewItems.filter(i => !i.verified).length} Pending Review
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {reviewItems.map((rev) => (
+            <div key={rev.id} className="bg-white border border-amber-300 rounded-lg p-4 space-y-3 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
+                  AI detected a new requirement
+                </span>
+                <span className="text-xs font-bold text-slate-700">Confidence: {rev.confidence}%</span>
+              </div>
+
+              <div className="space-y-1 text-sm text-slate-800">
+                <p><strong className="font-semibold text-slate-900">Customer:</strong> {rev.customerName}</p>
+                <div className="grid grid-cols-2 gap-2 pt-1 font-mono text-xs">
+                  <div><span className="text-slate-500">Location:</span> <strong>{rev.location}</strong></div>
+                  <div><span className="text-slate-500">BHK:</span> <strong>{rev.bhk}</strong></div>
+                  <div><span className="text-slate-500">Budget:</span> <strong>{rev.budget}</strong></div>
+                  <div><span className="text-slate-500">Move-in:</span> <strong>{rev.moveIn}</strong></div>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                {rev.verified ? (
+                  <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-md flex items-center gap-1">
+                    ✓ verified = true (Human Confirmed)
+                  </span>
+                ) : (
+                  <div className="flex items-center gap-2 w-full justify-end">
+                    <button
+                      onClick={() => handleApprove(rev.id)}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-1.5 rounded transition-colors"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => handleApprove(rev.id)}
+                      className="bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold px-3 py-1.5 rounded transition-colors"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleReject(rev.id)}
+                      className="bg-rose-100 hover:bg-rose-200 text-rose-800 text-xs font-bold px-3 py-1.5 rounded transition-colors"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Simulator Form */}

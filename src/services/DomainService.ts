@@ -215,4 +215,48 @@ export class DomainService {
       };
     });
   }
+
+  // Phase 7: Human Approval System methods
+  getPendingReviews() {
+    return this.dbConn.select({
+      requirement: requirements,
+      extractionRun: extractionRuns,
+    })
+    .from(requirements)
+    .leftJoin(extractionRuns, eq(requirements.sourceRecordId, extractionRuns.sourceRecordId))
+    .where(eq(requirements.isVerifiedManually, false))
+    .all();
+  }
+
+  approveReview(requirementId: string, overrides?: Partial<typeof requirements.$inferInsert>) {
+    return this.dbConn.transaction((tx: any) => {
+      const [updated] = tx.update(requirements)
+        .set({
+          ...overrides,
+          isVerifiedManually: true,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(requirements.id, requirementId))
+        .returning()
+        .all();
+
+      return updated;
+    });
+  }
+
+  rejectReview(requirementId: string) {
+    return this.dbConn.transaction((tx: any) => {
+      const [updated] = tx.update(requirements)
+        .set({
+          isActive: false,
+          isVerifiedManually: false,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(requirements.id, requirementId))
+        .returning()
+        .all();
+
+      return updated;
+    });
+  }
 }

@@ -174,6 +174,37 @@ export function createApp(customDb = defaultDb) {
     }
   });
 
+  // Phase 7: Human Approval System Endpoints
+  app.get('/api/reviews/pending', (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const pending = domainService.getPendingReviews();
+      res.status(200).json({ success: true, data: pending });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/reviews/:id/approve', (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const overrides = req.body;
+      const approved = domainService.approveReview(id, overrides);
+      res.status(200).json({ success: true, data: approved });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post('/api/reviews/:id/reject', (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const rejected = domainService.rejectReview(id);
+      res.status(200).json({ success: true, data: rejected });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Generic AI Extraction Pipeline Endpoint (Phase 6)
   app.post('/api/extract/pipeline', async (req: Request, res: Response, next: NextFunction) => {
     try {
