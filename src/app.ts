@@ -174,6 +174,23 @@ export function createApp(customDb = defaultDb) {
     }
   });
 
+  // Generic AI Extraction Pipeline Endpoint (Phase 6)
+  app.post('/api/extract/pipeline', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { rawInput, sourceIdentifier, providerName } = req.body;
+      if (!rawInput) {
+        res.status(400).json({ success: false, error: 'rawInput is required' });
+        return;
+      }
+      const { AIPipeline } = await import('./ai/Pipeline.js');
+      const pipeline = new AIPipeline();
+      const result = await pipeline.processInput(rawInput, { sourceIdentifier, providerName });
+      res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // AI Extraction Endpoint
   app.post('/api/extract', async (req: Request, res: Response, next: NextFunction) => {
     try {
