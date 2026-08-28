@@ -5,6 +5,7 @@ import { ZodError } from 'zod';
 import { DomainService } from './services/DomainService.js';
 import { DashboardService } from './services/DashboardService.js';
 import { MatchingEngine } from './matching/MatchingEngine.js';
+import whatsappRouter from './whatsapp/routes.js';
 import { db as defaultDb } from './db/index.js';
 import {
   CreateContactSchema,
@@ -25,6 +26,9 @@ export function createApp(customDb = defaultDb) {
 
   app.use(express.json());
   app.use(pinoHttp({ logger }));
+
+  // WhatsApp Business Cloud API Integration Routes
+  app.use('/api/whatsapp', whatsappRouter);
 
   // Health endpoint
   app.get('/health', (req: Request, res: Response) => {

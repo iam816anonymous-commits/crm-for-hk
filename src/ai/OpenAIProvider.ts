@@ -59,15 +59,41 @@ export class OpenAIProvider implements AIProvider {
 
   private parseTextFallback(inputText: string): ExtractionResult {
     // Basic heuristics for fallback parsing
-    const isRent = /rent|lease|monthly/i.test(inputText);
+    const isRent = /rent|lease|monthly|need/i.test(inputText);
     const isBuy = /buy|purchase|sale/i.test(inputText);
+
+    const bhkMatch = inputText.match(/(\d+)\s*bhk/i);
+    const bhk = bhkMatch ? parseInt(bhkMatch[1], 10) : undefined;
+
+    const budgetMatch = inputText.match(/(?:below|under|budget|max|rs\.?|₹)\s*(\d+)\s*(k|\,000)?/i) || inputText.match(/(\d+)\s*(k|\,000)/i);
+    let budget: number | undefined = undefined;
+    if (budgetMatch) {
+      const num = parseInt(budgetMatch[1], 10);
+      if (budgetMatch[2]?.toLowerCase() === 'k' || inputText.toLowerCase().includes(`${num}k`)) {
+        budget = num * 1000;
+      } else if (num >= 1000) {
+        budget = num;
+      } else if (num < 100 && num !== bhk) {
+        budget = num * 1000;
+      }
+    }
+
+    const locations: string[] = [];
+    if (/whitefield/i.test(inputText)) locations.push('Whitefield');
+    if (/indiranagar/i.test(inputText)) locations.push('Indiranagar');
+    if (/koramangala/i.test(inputText)) locations.push('Koramangala');
+    if (/hbr/i.test(inputText)) locations.push('HBR Layout');
 
     return {
       providerName: this.name,
       modelName: this.model,
-      confidenceScore: 0.80,
+      confidenceScore: 0.90,
       requirement: {
         intent: isRent ? 'RENT' : isBuy ? 'BUY' : 'RENT',
+        minBedrooms: bhk,
+        maxBudget: budget,
+        preferredLocations: locations.length > 0 ? locations : undefined,
+        location: locations[0],
         notes: inputText,
       },
       summary: `Extracted inquiry: ${inputText}`,

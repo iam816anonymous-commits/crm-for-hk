@@ -54,45 +54,154 @@ export function CallsView() {
 }
 
 export function WhatsAppView() {
-  const messages = [
-    { id: 'wa-1', contact: 'RAVI KUMAR', phone: '+91 98765 43210', preview: 'Looking for a 2BHK in Whitefield around ₹25,000 rent. Is Prestige Shantiniketan available?', direction: 'INBOUND', count: 12, time: '11:15 AM Today' },
-    { id: 'wa-2', contact: 'ANITA SHARMA', phone: '+91 98123 45678', preview: 'Hi Ravi, rent deposit agreement document is ready for review.', direction: 'OUTBOUND', count: 8, time: 'Yesterday' },
-  ];
+  const [phone, setPhone] = React.useState('+919876543210');
+  const [name, setName] = React.useState('Ravi Kumar');
+  const [message, setMessage] = React.useState('I need 2bhk in Whitefield below 25k');
+  const [simulating, setSimulating] = React.useState(false);
+  const [ingestedMessages, setIngestedMessages] = React.useState<any[]>([]);
+
+  const fetchMessages = React.useCallback(async () => {
+    try {
+      const res = await fetch('/api/whatsapp/messages');
+      const data = await res.json();
+      if (data.messages) {
+        setIngestedMessages(data.messages);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchMessages();
+  }, [fetchMessages]);
+
+  const handleSimulate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSimulating(true);
+    try {
+      await fetch('/api/whatsapp/simulate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, name, message }),
+      });
+      setMessage('');
+      await fetchMessages();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSimulating(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">WhatsApp Conversations</h1>
-          <p className="text-sm text-gray-500">Official Meta Cloud API message stream & automated AI entity extraction</p>
+          <h1 className="text-2xl font-bold text-gray-900">WhatsApp Ingestion Engine</h1>
+          <p className="text-sm text-gray-500">Meta Cloud API Webhook Ingestion & Raw Message Traceability</p>
         </div>
+        <span className="bg-emerald-100 text-emerald-800 text-xs font-semibold px-3 py-1 rounded-full border border-emerald-300">
+          ● Meta Webhook Active
+        </span>
       </div>
 
+      {/* Simulator Form */}
+      <div className="bg-slate-900 text-white p-5 rounded-xl border border-slate-800 shadow-md">
+        <h2 className="text-md font-semibold text-emerald-400 mb-3 flex items-center gap-2">
+          <MessageCircle className="w-5 h-5" /> Simulate Meta Cloud API Inbound Webhook
+        </h2>
+        <form onSubmit={handleSimulate} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1">Sender Phone</label>
+            <input
+              type="text"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 font-mono"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1">Sender Name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
+            />
+          </div>
+          <div className="md:col-span-2 flex gap-2">
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-slate-300 mb-1">Raw Inbound Message Text</label>
+              <input
+                type="text"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="e.g. I need 2bhk in Whitefield below 25k"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={simulating}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm px-4 py-2 rounded-lg transition-colors flex items-center gap-2 self-end"
+            >
+              {simulating ? 'Ingesting...' : 'Send Webhook'}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* Ingested Messages Feed */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-medium">
-            <tr>
-              <th className="px-6 py-3.5">Contact Name</th>
-              <th className="px-6 py-3.5">Phone Number</th>
-              <th className="px-6 py-3.5">Latest Message Preview</th>
-              <th className="px-6 py-3.5">Total Messages</th>
-              <th className="px-6 py-3.5">Last Activity</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {messages.map((m) => (
-              <tr key={m.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 font-semibold text-gray-900">{m.contact}</td>
-                <td className="px-6 py-4 font-mono text-gray-700">{m.phone}</td>
-                <td className="px-6 py-4 text-gray-600 max-w-md truncate">{m.preview}</td>
-                <td className="px-6 py-4">
-                  <span className="bg-green-100 text-green-800 text-xs font-bold px-2.5 py-1 rounded-full">{m.count} messages</span>
-                </td>
-                <td className="px-6 py-4 text-gray-500">{m.time}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
+          <h3 className="font-semibold text-gray-900 text-sm">Ingested Raw Messages & Linked Extracted CRM Entities</h3>
+          <span className="text-xs text-gray-500 font-mono">Count: {ingestedMessages.length}</span>
+        </div>
+        <div className="divide-y divide-gray-200">
+          {ingestedMessages.length === 0 ? (
+            <div className="p-8 text-center text-gray-500 text-sm">No WhatsApp messages ingested yet. Use the simulator above to post a test message.</div>
+          ) : (
+            ingestedMessages.map((msg) => (
+              <div key={msg.id} className="p-5 hover:bg-slate-50 transition-colors space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-md font-mono">
+                      {msg.senderPhone}
+                    </span>
+                    <span className="text-xs text-gray-400 font-mono">ID: {msg.id.substr(0, 18)}...</span>
+                  </div>
+                  <span className="text-xs text-gray-500">{new Date(msg.createdAt).toLocaleTimeString()}</span>
+                </div>
+
+                {/* Raw Message Card */}
+                <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-lg">
+                  <span className="text-[10px] font-bold uppercase text-emerald-700 block mb-1">Stored Raw Message (Untouched Source)</span>
+                  <p className="text-sm font-semibold text-emerald-950">"{msg.messageBody || msg.rawPayload}"</p>
+                </div>
+
+                {/* Extracted Entity Link */}
+                {msg.extractedRequirement ? (
+                  <div className="bg-indigo-50 border border-indigo-200 p-3 rounded-lg flex items-center justify-between text-xs text-indigo-900">
+                    <div>
+                      <span className="font-bold text-indigo-700 uppercase text-[10px] block mb-1">AI Structured CRM Requirement (Linked to Source ID)</span>
+                      <span>
+                        <strong className="font-semibold">Location:</strong> {msg.extractedRequirement.preferredLocations?.join(', ') || 'N/A'} |{' '}
+                        <strong className="font-semibold">BHK:</strong> {msg.extractedRequirement.minBedrooms ?? 'N/A'} |{' '}
+                        <strong className="font-semibold">Max Budget:</strong> ₹{msg.extractedRequirement.maxBudget ? msg.extractedRequirement.maxBudget.toLocaleString('en-IN') : 'N/A'}
+                      </span>
+                    </div>
+                    <span className="bg-indigo-200 text-indigo-900 font-bold px-2 py-1 rounded text-[11px]">
+                      Confidence: {Math.round((msg.extractedRequirement.extractionConfidence || 0.9) * 100)}%
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-xs text-gray-400 italic">No structured CRM entity extracted</span>
+                )}
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

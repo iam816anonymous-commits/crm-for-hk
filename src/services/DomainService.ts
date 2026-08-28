@@ -23,6 +23,14 @@ export class DomainService {
     return this.contactRepo.findOrCreateContact(phoneRaw, data, this.dbConn);
   }
 
+  upsertContact(data: { phoneRaw: string; firstName?: string; lastName?: string; email?: string }, dbOrTx = this.dbConn) {
+    return this.contactRepo.findOrCreateContact(data.phoneRaw, data, dbOrTx);
+  }
+
+  ensureCustomerForContact(contactId: string, customerType = 'TENANT', dbOrTx = this.dbConn) {
+    return this.contactRepo.getOrCreateCustomerRole(contactId, customerType, undefined, dbOrTx);
+  }
+
   // Rule #4: Create customer role linked to contact
   createCustomer(data: { phoneRaw?: string; contactId?: string; firstName?: string; lastName?: string; email?: string; customerType?: string; notes?: string }) {
     return this.dbConn.transaction((tx: any) => {
