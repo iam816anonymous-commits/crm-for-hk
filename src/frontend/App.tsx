@@ -12,6 +12,7 @@ import ContactDetailView from './views/ContactDetailView.js';
 import PropertiesView from './views/PropertiesView.js';
 import RequirementsView from './views/RequirementsView.js';
 import LeadsView from './views/LeadsView.js';
+import MatchesView from './views/MatchesView.js';
 import { CallsView, WhatsAppView, VisitsView, FollowupsView } from './views/CommunicationViews.js';
 import GenericView from './views/GenericView.js';
 
@@ -135,7 +136,7 @@ export default function App() {
             <Route path="/whatsapp" element={<WhatsAppView />} />
             <Route path="/visits" element={<VisitsView />} />
             <Route path="/followups" element={<FollowupsView />} />
-            <Route path="/matches" element={<LeadsView />} />
+            <Route path="/matches" element={<MatchesView />} />
             <Route path="/reports" element={<GenericView title="Reports" icon={BarChart3} />} />
             <Route path="/settings" element={<GenericView title="Settings" icon={Settings} />} />
           </Routes>

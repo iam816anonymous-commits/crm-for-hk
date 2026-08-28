@@ -4,6 +4,7 @@ import pinoHttp from 'pino-http';
 import { ZodError } from 'zod';
 import { DomainService } from './services/DomainService.js';
 import { DashboardService } from './services/DashboardService.js';
+import { MatchingEngine } from './matching/MatchingEngine.js';
 import { db as defaultDb } from './db/index.js';
 import {
   CreateContactSchema,
@@ -19,6 +20,7 @@ export function createApp(customDb = defaultDb) {
   const app = express();
   const domainService = new DomainService(customDb);
   const dashboardService = new DashboardService();
+  const matchingEngine = new MatchingEngine();
   const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
   app.use(express.json());
@@ -60,6 +62,21 @@ export function createApp(customDb = defaultDb) {
         return;
       }
       res.status(200).json({ success: true, data: details });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Deterministic Matching API
+  app.post('/api/matches/score', (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { requirement, property } = req.body;
+      if (!requirement || !property) {
+        res.status(400).json({ success: false, error: 'Both requirement and property objects are required' });
+        return;
+      }
+      const scoreResult = matchingEngine.calculateMatchScore(requirement, property);
+      res.status(200).json({ success: true, data: scoreResult });
     } catch (error) {
       next(error);
     }
