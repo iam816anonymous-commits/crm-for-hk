@@ -2,7 +2,7 @@ import { db } from '../db/index.js';
 import { ContactRepository } from '../repositories/ContactRepository.js';
 import { PropertyRepository, RequirementRepository, LeadRepository, InteractionRepository } from '../repositories/DomainRepositories.js';
 import { ExtractionEngine } from '../ai/ExtractionEngine.js';
-import { sourceRecords, extractionRuns, requirements } from '../db/schema.js';
+import { sourceRecords, extractionRuns, requirements, calls, auditLogs } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 
 export class DomainService {
@@ -123,19 +123,29 @@ export class DomainService {
     return this.leadRepo.listLeads(this.dbConn);
   }
 
-  // Rule #7: Record interaction (call or message)
-  recordInteraction(data: { phoneRaw: string; channel: string; direction: string; summary?: string; body?: string; durationSeconds?: number; senderPhone?: string; recipientPhone?: string }) {
+  // Rule #7 & Phase 8: Record interaction (call or message) with duplicate prevention and audit trail
+  recordInteraction(data: { phoneRaw: string; channel: string; direction: string; summary?: string; body?: string; durationSeconds?: number; senderPhone?: string; recipientPhone?: string; externalCallSid?: string; callStatus?: string; deviceId?: string }) {
     return this.dbConn.transaction((tx: any) => {
+      // Deduplication check if externalCallSid is provided
+      if (data.externalCallSid) {
+        const existingCall = tx.select().from(calls).where(eq(calls.externalCallSid, data.externalCallSid)).get();
+        if (existingCall) {
+          return { status: 'DUPLICATE', call: existingCall };
+        }
+      }
+
       const contact = this.contactRepo.findOrCreateContact(data.phoneRaw, {}, tx);
       const contactId = contact.id;
 
       const detailData = data.channel === 'CALL' ? {
         type: 'call' as const,
         payload: {
+          externalCallSid: data.externalCallSid,
           fromNumber: data.senderPhone || data.phoneRaw,
           toNumber: data.recipientPhone || 'System',
           durationSeconds: data.durationSeconds || 0,
-          callStatus: 'COMPLETED',
+          callStatus: data.callStatus || 'COMPLETED',
+          deviceId: data.deviceId,
         }
       } : {
         type: 'message' as const,
@@ -146,12 +156,30 @@ export class DomainService {
         }
       };
 
-      return this.interactionRepo.createInteraction({
+      const interactionResult = this.interactionRepo.createInteraction({
         contactId,
         channel: data.channel,
         direction: data.direction,
         summary: data.summary || data.body,
       }, detailData, tx);
+
+      // Audit Log for Call Ingestion
+      tx.insert(auditLogs).values({
+        tableName: 'calls',
+        recordId: interactionResult.id,
+        action: 'INSERT',
+        performedBy: 'ANDROID_COMPANION_APP',
+        newValues: JSON.stringify({
+          phoneRaw: data.phoneRaw,
+          externalCallSid: data.externalCallSid,
+          channel: data.channel,
+          direction: data.direction,
+          durationSeconds: data.durationSeconds,
+          callStatus: data.callStatus,
+        }),
+      }).run();
+
+      return { status: 'CREATED', ...interactionResult };
     });
   }
 

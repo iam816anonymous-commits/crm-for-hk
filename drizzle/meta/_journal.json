@@ -15,6 +15,13 @@
       "when": 1787889732062,
       "tag": "0001_foamy_alice",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1787898451365,
+      "tag": "0002_flat_jimmy_woo",
+      "breakpoints": true
     }
   ]
 }

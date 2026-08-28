@@ -15,6 +15,7 @@ import {
   CreateRequirementSchema,
   UpdateLeadStageSchema,
   CreateInteractionSchema,
+  IngestCallLogSchema,
 } from './schemas/validation.js';
 
 export function createApp(customDb = defaultDb) {
@@ -40,6 +41,50 @@ export function createApp(customDb = defaultDb) {
     try {
       const stats = await dashboardService.getStats(customDb);
       res.status(200).json({ success: true, data: stats });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Phase 8: Ingest Call Log API Endpoint (from Android Companion App)
+  app.post('/api/calls/log', (req: Request, res: Response, next: NextFunction) => {
+    try {
+      // Authorization Check
+      const authHeader = req.headers.authorization;
+      const expectedToken = process.env.COMPANION_API_TOKEN || 'app_sync_88192a';
+      if (!authHeader || !authHeader.startsWith('Bearer ') || authHeader.split(' ')[1] !== expectedToken) {
+        res.status(401).json({ success: false, error: 'Unauthorized: Invalid or missing bearer token' });
+        return;
+      }
+
+      const validated = IngestCallLogSchema.parse(req.body);
+
+      // Determine direction & target counterparty phone number reliably
+      const direction = validated.direction
+        ? validated.direction
+        : (validated.fromNumber.startsWith('+919999') || validated.fromNumber === 'System' ? 'OUTBOUND' : 'INBOUND');
+
+      const targetPhone = direction === 'OUTBOUND' ? validated.toNumber : validated.fromNumber;
+
+      const result = domainService.recordInteraction({
+        phoneRaw: targetPhone,
+        channel: 'CALL',
+        direction: direction,
+        summary: `${direction} call - ${validated.durationSeconds}s duration (${validated.callStatus})`,
+        durationSeconds: validated.durationSeconds,
+        senderPhone: validated.fromNumber,
+        recipientPhone: validated.toNumber,
+        externalCallSid: validated.externalCallSid,
+        callStatus: validated.callStatus,
+        deviceId: validated.deviceId,
+      });
+
+      if (result.status === 'DUPLICATE') {
+        res.status(409).json({ success: false, error: 'Duplicate call record already ingested', data: result.call });
+        return;
+      }
+
+      res.status(201).json({ success: true, data: result });
     } catch (error) {
       next(error);
     }

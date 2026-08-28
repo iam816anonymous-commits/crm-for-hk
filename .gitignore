@@ -9,3 +9,10 @@ dist/
 *.sqlite-shm
 coverage/
 .env
+*.log
+
+# Android build outputs and Gradle cache
+.gradle/
+android/.gradle/
+android/app/build/
+android/build/

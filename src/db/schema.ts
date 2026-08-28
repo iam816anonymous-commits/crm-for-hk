@@ -203,16 +203,19 @@ export const messages = sqliteTable('messages', {
 export const calls = sqliteTable('calls', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   interactionId: text('interaction_id').notNull().references(() => interactions.id, { onDelete: 'cascade' }),
-  externalCallSid: text('external_call_sid'),
+  externalCallSid: text('external_call_sid').unique(),
   fromNumber: text('from_number').notNull(),
   toNumber: text('to_number').notNull(),
   durationSeconds: integer('duration_seconds').notNull().default(0),
   callStatus: text('call_status').notNull(), // COMPLETED, BUSY, NO_ANSWER, FAILED, MISSED
   recordingUrl: text('recording_url'),
   transcript: text('transcript'),
+  deviceId: text('device_id'),
   createdAt: text('created_at').notNull().default(sql`(CURRENT_TIMESTAMP)`),
 }, (table) => [
   index('idx_calls_interaction_id').on(table.interactionId),
+  uniqueIndex('idx_calls_external_sid').on(table.externalCallSid),
+  index('idx_calls_from_to').on(table.fromNumber, table.toNumber),
 ]);
 
 // 13. visits (Property viewings)

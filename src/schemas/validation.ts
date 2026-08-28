@@ -115,3 +115,15 @@ export const CreateInteractionSchema = z.object({
   senderPhone: z.string().optional(),
   recipientPhone: z.string().optional(),
 });
+
+// Phase 8 Android Call Sync Ingestion Schema
+export const IngestCallLogSchema = z.object({
+  externalCallSid: z.string().min(1, 'externalCallSid is required'),
+  fromNumber: z.string().min(5, 'fromNumber must be at least 5 characters'),
+  toNumber: z.string().min(5, 'toNumber must be at least 5 characters'),
+  direction: z.enum(['INBOUND', 'OUTBOUND']).optional(),
+  durationSeconds: z.number().int().min(0).default(0),
+  callStatus: z.enum(['COMPLETED', 'BUSY', 'NO_ANSWER', 'FAILED', 'MISSED']).default('COMPLETED'),
+  timestampMs: z.number().optional(),
+  deviceId: z.string().optional(),
+});
