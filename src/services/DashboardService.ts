@@ -1,6 +1,6 @@
 import { db } from '../db/index.js';
-import { contacts, customers, owners, properties, requirements, leads, interactions, calls, messages, visits, followups, extractionRuns, auditLogs } from '../db/schema.js';
-import { eq, like, or, count, and, desc } from 'drizzle-orm';
+import { contacts, customers, owners, properties, requirements, leads, interactions, calls, messages, visits, followups, extractionRuns, sourceRecords, auditLogs } from '../db/schema.js';
+import { eq, like, or, count, and, desc, inArray } from 'drizzle-orm';
 import { normalizePhoneNumber } from '../utils/phone.js';
 
 export interface TimelineEvent {
@@ -164,24 +164,28 @@ export class DashboardService {
       lead = dbConn.select().from(leads).where(eq(leads.customerId, customerRole.id)).get() || null;
     }
 
-    // Interactions, Calls, WhatsApp Messages & Site Visits
-    const allInteractions = dbConn.select().from(interactions).where(eq(interactions.contactId, contact.id)).all();
-
-    // Scoped call logs
-    const callLogs = dbConn.select().from(calls)
-      .where(or(
-        eq(calls.fromNumber, contact.phoneNormalized),
-        eq(calls.toNumber, contact.phoneNormalized)
-      ))
+    // Interactions for this contact
+    const allInteractions = dbConn.select().from(interactions)
+      .where(organizationId ? and(eq(interactions.contactId, contact.id), eq(interactions.organizationId, organizationId)) : eq(interactions.contactId, contact.id))
       .all();
 
-    // Scoped WhatsApp messages
-    const whatsappMessages = dbConn.select().from(messages)
-      .where(or(
-        eq(messages.senderPhone, contact.phoneNormalized),
-        eq(messages.recipientPhone, contact.phoneNormalized)
-      ))
-      .all();
+    const interactionIds = allInteractions.map(i => i.id);
+
+    // Scoped call logs belonging to this contact's interactions
+    let callLogs: any[] = [];
+    if (interactionIds.length > 0) {
+      callLogs = dbConn.select().from(calls)
+        .where(inArray(calls.interactionId, interactionIds))
+        .all();
+    }
+
+    // Scoped WhatsApp messages belonging to this contact's interactions
+    let whatsappMessages: any[] = [];
+    if (interactionIds.length > 0) {
+      whatsappMessages = dbConn.select().from(messages)
+        .where(inArray(messages.interactionId, interactionIds))
+        .all();
+    }
 
     // Site visits
     let siteVisits: any[] = [];
@@ -195,8 +199,35 @@ export class DashboardService {
       scheduledFollowups = dbConn.select().from(followups).where(eq(followups.customerId, customerRole.id)).all();
     }
 
-    // AI Extractions associated with contact or interactions
-    const extractions = dbConn.select().from(extractionRuns).all();
+    // AI Extractions associated with contact's source records
+    const contactSourceRecordIds = new Set<string>();
+
+    allInteractions.forEach((i) => {
+      if (i.sourceRecordId) {
+        contactSourceRecordIds.add(i.sourceRecordId);
+      }
+    });
+
+    const matchingSourceRecords = dbConn.select().from(sourceRecords)
+      .where(or(
+        eq(sourceRecords.senderIdentifier, contact.phoneNormalized),
+        eq(sourceRecords.senderIdentifier, contact.phoneRaw)
+      ))
+      .all();
+
+    matchingSourceRecords.forEach((sr) => {
+      if (!organizationId || sr.organizationId === organizationId) {
+        contactSourceRecordIds.add(sr.id);
+      }
+    });
+
+    let extractions: any[] = [];
+    if (contactSourceRecordIds.size > 0) {
+      const srIdArray = Array.from(contactSourceRecordIds);
+      extractions = dbConn.select().from(extractionRuns)
+        .where(inArray(extractionRuns.sourceRecordId, srIdArray))
+        .all();
+    }
 
     // Unified Chronological Activity Timeline (Newest first)
     const timeline: TimelineEvent[] = [];
