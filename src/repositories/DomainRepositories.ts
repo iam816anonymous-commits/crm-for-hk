@@ -1,6 +1,6 @@
 import { db } from '../db/index.js';
-import { properties, requirements, leads, interactions, messages, calls, sourceRecords, extractionRuns, auditLogs } from '../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { properties, requirements, leads, interactions, messages, calls } from '../db/schema.js';
+import { eq, and } from 'drizzle-orm';
 
 export class PropertyRepository {
   createProperty(data: any, dbTx = db) {
@@ -12,11 +12,17 @@ export class PropertyRepository {
     return newProperty;
   }
 
-  getPropertyById(id: string, dbTx = db) {
+  getPropertyById(id: string, organizationId?: string, dbTx = db) {
+    if (organizationId) {
+      return dbTx.select().from(properties).where(and(eq(properties.id, id), eq(properties.organizationId, organizationId))).get();
+    }
     return dbTx.select().from(properties).where(eq(properties.id, id)).get();
   }
 
-  listProperties(dbTx = db) {
+  listProperties(organizationId?: string, dbTx = db) {
+    if (organizationId) {
+      return dbTx.select().from(properties).where(eq(properties.organizationId, organizationId)).all();
+    }
     return dbTx.select().from(properties).all();
   }
 }
@@ -32,11 +38,17 @@ export class RequirementRepository {
     return newRequirement;
   }
 
-  getRequirementById(id: string, dbTx = db) {
+  getRequirementById(id: string, organizationId?: string, dbTx = db) {
+    if (organizationId) {
+      return dbTx.select().from(requirements).where(and(eq(requirements.id, id), eq(requirements.organizationId, organizationId))).get();
+    }
     return dbTx.select().from(requirements).where(eq(requirements.id, id)).get();
   }
 
-  listRequirements(dbTx = db) {
+  listRequirements(organizationId?: string, dbTx = db) {
+    if (organizationId) {
+      return dbTx.select().from(requirements).where(eq(requirements.organizationId, organizationId)).all();
+    }
     return dbTx.select().from(requirements).all();
   }
 }
@@ -47,7 +59,12 @@ export class LeadRepository {
     return newLead;
   }
 
-  updateLeadStage(id: string, stage: string, lostReason?: string, dbTx = db) {
+  updateLeadStage(id: string, stage: string, lostReason?: string, organizationId?: string, dbTx = db) {
+    if (organizationId) {
+      const existing = dbTx.select().from(leads).where(and(eq(leads.id, id), eq(leads.organizationId, organizationId))).get();
+      if (!existing) return null;
+    }
+
     dbTx.update(leads)
       .set({
         stage,
@@ -60,7 +77,10 @@ export class LeadRepository {
     return dbTx.select().from(leads).where(eq(leads.id, id)).get();
   }
 
-  listLeads(dbTx = db) {
+  listLeads(organizationId?: string, dbTx = db) {
+    if (organizationId) {
+      return dbTx.select().from(leads).where(eq(leads.organizationId, organizationId)).all();
+    }
     return dbTx.select().from(leads).all();
   }
 }

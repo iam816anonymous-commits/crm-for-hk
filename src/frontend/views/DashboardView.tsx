@@ -1,41 +1,64 @@
 import React, { useState, useEffect } from 'react';
-import { Home, CheckCircle2, Building2, UserPlus, Flame, Clock, Calendar, PhoneCall, MessageSquare } from 'lucide-react';
+import { Home, CheckCircle2, Building2, UserPlus, Flame, Clock, Calendar, PhoneCall, MessageSquare, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function DashboardView() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetch('/api/dashboard/stats')
-      .then((res) => res.json())
+    const token = localStorage.getItem('auth_token');
+    fetch('/api/dashboard/stats', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to load dashboard metrics');
+        return res.json();
+      })
       .then((data) => {
         if (data.success) {
           setStats(data.data);
+        } else {
+          setError(data.error || 'Failed to load stats');
         }
       })
-      .catch((err) => console.error('Error fetching dashboard stats:', err))
+      .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
 
   const metricCards = [
-    { title: 'Total Properties', value: stats?.totalProperties ?? 18, icon: Home, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { title: 'Available', value: stats?.availableProperties ?? 12, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { title: 'Occupied', value: stats?.occupiedProperties ?? 6, icon: Building2, color: 'text-purple-600', bg: 'bg-purple-50' },
-    { title: 'New Leads', value: stats?.newLeads ?? 14, icon: UserPlus, color: 'text-amber-600', bg: 'bg-amber-50' },
-    { title: 'Hot Leads', value: stats?.hotLeads ?? 5, icon: Flame, color: 'text-rose-600', bg: 'bg-rose-50' },
-    { title: 'Pending Follow-ups', value: stats?.pendingFollowups ?? 8, icon: Clock, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-    { title: 'Today\'s Visits', value: stats?.todayVisits ?? 3, icon: Calendar, color: 'text-teal-600', bg: 'bg-teal-50' },
-    { title: 'Recent Calls', value: stats?.recentCallsCount ?? 4, icon: PhoneCall, color: 'text-sky-600', bg: 'bg-sky-50' },
-    { title: 'Recent WhatsApp Enquiries', value: stats?.recentWhatsAppCount ?? 12, icon: MessageSquare, color: 'text-green-600', bg: 'bg-green-50' },
+    { title: 'Total Properties', value: stats?.totalProperties ?? 0, icon: Home, color: 'text-blue-600', bg: 'bg-blue-50', link: '/properties' },
+    { title: 'Available Properties', value: stats?.availableProperties ?? 0, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50', link: '/properties' },
+    { title: 'Occupied Properties', value: stats?.occupiedProperties ?? 0, icon: Building2, color: 'text-purple-600', bg: 'bg-purple-50', link: '/properties' },
+    { title: 'New Leads', value: stats?.newLeads ?? 0, icon: UserPlus, color: 'text-amber-600', bg: 'bg-amber-50', link: '/leads' },
+    { title: 'Hot Leads', value: stats?.hotLeads ?? 0, icon: Flame, color: 'text-rose-600', bg: 'bg-rose-50', link: '/leads' },
+    { title: 'Pending Follow-ups', value: stats?.pendingFollowups ?? 0, icon: Clock, color: 'text-indigo-600', bg: 'bg-indigo-50', link: '/followups' },
+    { title: 'Today\'s Visits', value: stats?.todayVisits ?? 0, icon: Calendar, color: 'text-teal-600', bg: 'bg-teal-50', link: '/visits' },
+    { title: 'Recent Calls', value: stats?.recentCallsCount ?? 0, icon: PhoneCall, color: 'text-sky-600', bg: 'bg-sky-50', link: '/calls' },
+    { title: 'WhatsApp Enquiries', value: stats?.recentWhatsAppCount ?? 0, icon: MessageSquare, color: 'text-green-600', bg: 'bg-green-50', link: '/whatsapp' },
   ];
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 text-red-700 p-6 rounded-xl flex items-center space-x-3">
+        <AlertCircle className="w-6 h-6 flex-shrink-0" />
+        <div>
+          <h3 className="font-semibold text-base">Error Loading Dashboard</h3>
+          <p className="text-sm mt-0.5">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Operations Dashboard</h1>
           <p className="text-sm text-gray-500">Real-time rental property operations & communication intelligence</p>
         </div>
       </div>
@@ -45,7 +68,11 @@ export default function DashboardView() {
         {metricCards.map((card) => {
           const Icon = card.icon;
           return (
-            <div key={card.title} className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex items-center justify-between hover:shadow-md transition">
+            <div
+              key={card.title}
+              onClick={() => navigate(card.link)}
+              className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex items-center justify-between hover:shadow-md transition cursor-pointer"
+            >
               <div>
                 <p className="text-sm font-medium text-gray-500">{card.title}</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">{loading ? '...' : card.value}</p>
@@ -56,21 +83,6 @@ export default function DashboardView() {
             </div>
           );
         })}
-      </div>
-
-      {/* Demo Contact Highlight Card */}
-      <div className="bg-gradient-to-r from-blue-900 to-indigo-900 rounded-xl p-6 text-white shadow-md flex items-center justify-between">
-        <div>
-          <span className="bg-blue-600/60 text-blue-200 text-xs font-semibold px-2.5 py-1 rounded-full uppercase tracking-wider">Featured Prospect</span>
-          <h2 className="text-xl font-bold mt-2">RAVI KUMAR</h2>
-          <p className="text-blue-200 text-sm mt-1">+91 98765 43210 • Tenant • 2BHK Whitefield ₹25,000</p>
-        </div>
-        <button
-          onClick={() => navigate('/contacts/ravi-kumar-demo')}
-          className="bg-white text-blue-900 hover:bg-blue-50 px-4 py-2 rounded-lg text-sm font-semibold shadow transition"
-        >
-          View Full Profile
-        </button>
       </div>
     </div>
   );

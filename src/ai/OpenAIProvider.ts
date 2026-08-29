@@ -93,7 +93,6 @@ export class OpenAIProvider implements AIProvider {
         minBedrooms: bhk,
         maxBudget: budget,
         preferredLocations: locations.length > 0 ? locations : undefined,
-        location: locations[0],
         notes: inputText,
       },
       summary: `Extracted inquiry: ${inputText}`,

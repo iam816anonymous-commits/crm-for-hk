@@ -26,6 +26,7 @@ export class CallIntelligenceService {
     filename?: string;
     mimeType?: string;
     userConsent: boolean;
+    organizationId?: string;
   }) {
     if (!params.userConsent) {
       throw new Error('User consent (userConsent = true) is strictly required to process call audio recordings.');
@@ -39,12 +40,13 @@ export class CallIntelligenceService {
 
     // 2. Perform 7-Stage AI Extraction on Transcript
     const aiResult = await this.extractionEngine.extract(sttResult.transcriptText);
-    const confidence = aiResult.overallConfidence ?? aiResult.confidenceScore ?? 0.90;
+    const confidence = aiResult.confidenceScore ?? 0.90;
 
     // 3. Database Execution
     return this.dbConn.transaction((tx: any) => {
       // Create Raw Source Record
       const [sourceRec] = tx.insert(sourceRecords).values({
+        organizationId: params.organizationId || null,
         sourceType: 'RECORDING',
         senderIdentifier: params.phoneRaw,
         payload: JSON.stringify({
@@ -58,12 +60,14 @@ export class CallIntelligenceService {
       const contact = this.domainService.upsertContact({
         phoneRaw: params.phoneRaw,
         firstName: 'Call Client',
+        organizationId: params.organizationId,
       }, tx);
 
-      const customer = this.domainService.ensureCustomerForContact(contact.id, 'TENANT', tx);
+      const customer = this.domainService.ensureCustomerForContact(contact.id, 'TENANT', params.organizationId, tx);
 
       // Create Interaction Record
       const [interaction] = tx.insert(interactions).values({
+        organizationId: params.organizationId || null,
         contactId: contact.id,
         customerId: customer.id,
         sourceRecordId: sourceRec.id,
@@ -88,6 +92,7 @@ export class CallIntelligenceService {
       if (aiResult.requirement) {
         const reqData = aiResult.requirement as any;
         [requirement] = tx.insert(requirements).values({
+          organizationId: params.organizationId || null,
           customerId: customer.id,
           intent: reqData.intent || 'RENT',
           propertyType: reqData.propertyType || 'APARTMENT',
@@ -115,6 +120,7 @@ export class CallIntelligenceService {
 
         // Audit Trail
         tx.insert(auditLogs).values({
+          organizationId: params.organizationId || null,
           tableName: 'calls',
           recordId: callRec.id,
           action: 'INSERT',
@@ -148,6 +154,7 @@ export class CallIntelligenceService {
     recordingUrl?: string;
     transcriptText?: string;
     callStatus: string;
+    organizationId?: string;
   }) {
     // Check duplicate call Sid
     const existingCall = this.dbConn.select().from(calls).where(eq(calls.externalCallSid, params.callSid)).get();
@@ -167,11 +174,13 @@ export class CallIntelligenceService {
       const contact = this.domainService.upsertContact({
         phoneRaw: params.fromNumber,
         firstName: 'Telephony Client',
+        organizationId: params.organizationId,
       }, tx);
 
-      const customer = this.domainService.ensureCustomerForContact(contact.id, 'TENANT', tx);
+      const customer = this.domainService.ensureCustomerForContact(contact.id, 'TENANT', params.organizationId, tx);
 
       const [sourceRec] = tx.insert(sourceRecords).values({
+        organizationId: params.organizationId || null,
         sourceType: 'RECORDING',
         externalId: params.callSid,
         senderIdentifier: params.fromNumber,
@@ -179,6 +188,7 @@ export class CallIntelligenceService {
       }).returning().all();
 
       const [interaction] = tx.insert(interactions).values({
+        organizationId: params.organizationId || null,
         contactId: contact.id,
         customerId: customer.id,
         sourceRecordId: sourceRec.id,
@@ -199,6 +209,7 @@ export class CallIntelligenceService {
       }).returning().all();
 
       tx.insert(auditLogs).values({
+        organizationId: params.organizationId || null,
         tableName: 'calls',
         recordId: callRec.id,
         action: 'INSERT',

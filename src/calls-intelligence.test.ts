@@ -5,20 +5,26 @@ import { createDbConnection } from './db/index.js';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import * as schema from './db/schema.js';
 import { eq } from 'drizzle-orm';
+import { createTestAuthUser } from './test-utils.js';
 
 describe('Phase 9: Call Intelligence, STT & Permitted Audio Upload API Integration Tests', () => {
   let app: any;
   let testDbConn: any;
+  let authToken: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     testDbConn = createDbConnection(':memory:');
     migrate(testDbConn.db, { migrationsFolder: './drizzle' });
     app = createApp(testDbConn.db);
+
+    const auth = await createTestAuthUser(testDbConn.db);
+    authToken = auth.token;
   });
 
   it('rejects permitted audio recording upload without explicit user consent', async () => {
     const res = await request(app)
       .post('/api/calls/upload-recording')
+      .set('Authorization', `Bearer ${authToken}`)
       .send({
         phoneRaw: '+919876543210',
         filename: 'meeting.mp3',
@@ -32,6 +38,7 @@ describe('Phase 9: Call Intelligence, STT & Permitted Audio Upload API Integrati
   it('successfully processes Mode B permitted audio upload, runs STT transcription and creates pending review entry', async () => {
     const res = await request(app)
       .post('/api/calls/upload-recording')
+      .set('Authorization', `Bearer ${authToken}`)
       .send({
         phoneRaw: '+919876543210',
         filename: 'client_call_recording.mp3',

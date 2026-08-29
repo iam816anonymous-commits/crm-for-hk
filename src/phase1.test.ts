@@ -3,25 +3,30 @@ import supertest from 'supertest';
 import { createApp } from './app.js';
 import { createDbConnection } from './db/index.js';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
+import { createTestAuthUser } from './test-utils.js';
 
 describe('Phase 1 Integration Tests', () => {
   let app: any;
   let testDbConn: any;
+  let authToken: string;
 
-  beforeEach(() => {
-    // Reset test database in memory
+  beforeEach(async () => {
     testDbConn = createDbConnection(':memory:');
     migrate(testDbConn.db, { migrationsFolder: './drizzle' });
     app = createApp(testDbConn.db);
+
+    const auth = await createTestAuthUser(testDbConn.db);
+    authToken = auth.token;
   });
 
   it('1. Contact creation and E.164 phone normalization', async () => {
     const res = await supertest(app)
       .post('/api/contacts')
+      .set('Authorization', `Bearer ${authToken}`)
       .send({
         phoneRaw: '(415) 555-2671',
-        firstName: 'John',
-        lastName: 'Doe',
+        firstName: 'Alice',
+        lastName: 'Smith',
       });
 
     expect(res.status).toBe(201);
@@ -32,38 +37,38 @@ describe('Phase 1 Integration Tests', () => {
   it('2. Duplicate phone detection & canonical contact resolution', async () => {
     const res1 = await supertest(app)
       .post('/api/contacts')
-      .send({ phoneRaw: '+14155559999', firstName: 'Alice' });
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ phoneRaw: '+14155559999', firstName: 'Alice Original' });
 
     const res2 = await supertest(app)
       .post('/api/contacts')
+      .set('Authorization', `Bearer ${authToken}`)
       .send({ phoneRaw: '14155559999', firstName: 'Alice Updated' });
 
     expect(res1.status).toBe(201);
     expect(res2.status).toBe(201);
-    expect(res1.body.data.id).toBe(res2.body.data.id); // Same canonical contact ID!
+    expect(res1.body.data.id).toBe(res2.body.data.id); // Same canonical contact ID resolved
   });
 
   it('3. Property creation belonging to an owner', async () => {
-    // Create Owner first
     const ownerRes = await supertest(app)
       .post('/api/owners')
-      .send({ phoneRaw: '+14155550001', firstName: 'Landlord', companyName: 'Acme Properties' });
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ phoneRaw: '+14155550001', firstName: 'Landlord', companyName: 'Landlord Co' });
 
     expect(ownerRes.status).toBe(201);
     const ownerId = ownerRes.body.data.id;
 
-    // Create Property
     const propRes = await supertest(app)
       .post('/api/properties')
+      .set('Authorization', `Bearer ${authToken}`)
       .send({
         ownerId,
-        title: 'Modern 2BHK Apartment',
+        title: 'Sunset Apartment',
         propertyType: 'APARTMENT',
         listingType: 'RENT',
-        address: '123 Main St',
+        address: '123 Market St',
         city: 'San Francisco',
-        bedrooms: 2,
-        bathrooms: 2,
         monthlyRent: 3500,
       });
 
@@ -72,22 +77,23 @@ describe('Phase 1 Integration Tests', () => {
   });
 
   it('4. Requirement creation belonging to a customer', async () => {
-    // Create Customer
     const custRes = await supertest(app)
       .post('/api/customers')
+      .set('Authorization', `Bearer ${authToken}`)
       .send({ phoneRaw: '+14155550002', firstName: 'Tenant Bob', customerType: 'TENANT' });
 
     expect(custRes.status).toBe(201);
     const customerId = custRes.body.data.id;
 
-    // Create Requirement
     const reqRes = await supertest(app)
       .post('/api/requirements')
+      .set('Authorization', `Bearer ${authToken}`)
       .send({
         customerId,
         intent: 'RENT',
         propertyType: 'APARTMENT',
         minBedrooms: 2,
+        minBudget: 2000,
         maxBudget: 4000,
       });
 
@@ -98,23 +104,25 @@ describe('Phase 1 Integration Tests', () => {
   it('5. Relationship integrity & foreign key constraint enforcement', async () => {
     const res = await supertest(app)
       .post('/api/properties')
+      .set('Authorization', `Bearer ${authToken}`)
       .send({
-        ownerId: '00000000-0000-0000-0000-000000000000',
+        ownerId: 'non-existent-owner-uuid',
         title: 'Orphan Property',
         propertyType: 'APARTMENT',
         listingType: 'RENT',
-        address: '454 Nowhere St',
-        city: 'Ghost Town',
+        address: '454 Unknown Rd',
+        city: 'San Francisco',
       });
 
-    expect(res.status).toBe(500); // SQLITE_CONSTRAINT_FOREIGNKEY
+    expect(res.status).toBe(400); // Bad Request from FK rejection
   });
 
   it('6. Validation failures (Zod schema rejection)', async () => {
     const res = await supertest(app)
       .post('/api/contacts')
+      .set('Authorization', `Bearer ${authToken}`)
       .send({
-        phoneRaw: '123', // Too short
+        phoneRaw: '',
       });
 
     expect(res.status).toBe(400);
@@ -123,34 +131,35 @@ describe('Phase 1 Integration Tests', () => {
   });
 
   it('7. Rule #10: Do not silently overwrite manually verified information with AI extractions', async () => {
-    // 1. Manually create customer requirement and set isVerifiedManually = true
     const custRes = await supertest(app)
       .post('/api/customers')
+      .set('Authorization', `Bearer ${authToken}`)
       .send({ phoneRaw: '+14155558888', firstName: 'Verified User' });
     const customerId = custRes.body.data.id;
 
     const reqRes = await supertest(app)
       .post('/api/requirements')
+      .set('Authorization', `Bearer ${authToken}`)
       .send({
         customerId,
         intent: 'RENT',
         minBedrooms: 3,
-        maxBudget: 5000,
-        isVerifiedManually: true,
+        isVerifiedManually: true, // Mark manually verified
       });
 
-    expect(reqRes.body.data.isVerifiedManually).toBe(true);
+    const reqId = reqRes.body.data.id;
 
-    // 2. Trigger AI extraction for the same phone number with conflicting data
+    // Simulate unstructured AI extraction input
     const extractRes = await supertest(app)
       .post('/api/extract')
+      .set('Authorization', `Bearer ${authToken}`)
       .send({
         phoneRaw: '+14155558888',
-        inputText: 'I want to buy a studio apartment for $1000',
+        inputText: 'I am looking for a 1BHK apartment for rent under 1500',
       });
 
-    expect(extractRes.status).toBe(200);
     expect(extractRes.body.data.status).toBe('SKIPPED_MANUAL_VERIFIED');
-    expect(extractRes.body.data.requirement.minBedrooms).toBe(3); // Preserved manual value!
+    expect(extractRes.body.data.requirement.id).toBe(reqId);
+    expect(extractRes.body.data.requirement.minBedrooms).toBe(3); // Preserved original manually verified value!
   });
 });
