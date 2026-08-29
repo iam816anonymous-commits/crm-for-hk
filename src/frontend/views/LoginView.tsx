@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.js';
 import { Home, Lock, Mail, Building, User, KeyRound } from 'lucide-react';
+import { Button } from '../components/Button.js';
+import { Input } from '../components/Input.js';
 
 export default function LoginView() {
   const [searchParams] = useSearchParams();
@@ -60,15 +62,15 @@ export default function LoginView() {
     <div className="min-h-screen bg-slate-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex items-center justify-center space-x-3">
-          <div className="bg-blue-600 p-3 rounded-xl text-white shadow-lg">
+          <div className="bg-emerald-600 p-3 rounded-xl text-white shadow-lg">
             <Home className="w-8 h-8" />
           </div>
           <div>
             <h1 className="font-bold text-2xl tracking-wide text-white">PropCRM</h1>
-            <p className="text-xs text-slate-400">Communication & Intelligence System</p>
+            <p className="text-xs text-slate-400">Rental Property Operating System</p>
           </div>
         </div>
-        <h2 className="mt-6 text-center text-xl font-semibold text-slate-200">
+        <h2 className="mt-6 text-center text-lg font-semibold text-slate-200">
           {isAcceptInvite ? 'Accept User Invitation' : isRegister ? 'Create New Organization' : 'Sign in to your account'}
         </h2>
       </div>
@@ -76,113 +78,76 @@ export default function LoginView() {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-slate-800 py-8 px-4 shadow-2xl rounded-xl sm:px-10 border border-slate-700">
           {error && (
-            <div className="mb-4 bg-red-950/80 border border-red-500/50 text-red-200 px-4 py-3 rounded-lg text-sm">
+            <div className="mb-4 bg-rose-950/80 border border-rose-500/50 text-rose-200 px-4 py-3 rounded-lg text-xs font-medium">
               {error}
             </div>
           )}
 
-          <form className="space-y-5" onSubmit={handleSubmit}>
+          <form className="space-y-4" onSubmit={handleSubmit}>
             {isAcceptInvite && (
-              <div>
-                <label className="block text-xs font-medium text-slate-300">Invitation Token</label>
-                <div className="mt-1 relative rounded-md shadow-sm">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                    <KeyRound className="h-4 w-4" />
-                  </div>
-                  <input
-                    type="text"
-                    required
-                    value={inviteToken}
-                    onChange={(e) => setInviteToken(e.target.value)}
-                    className="block w-full pl-10 pr-3 py-2 border border-slate-600 rounded-lg bg-slate-900 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter invitation token"
-                  />
-                </div>
-              </div>
+              <Input
+                label="Invitation Token"
+                icon={KeyRound}
+                required
+                value={inviteToken}
+                onChange={(e) => setInviteToken(e.target.value)}
+                placeholder="Enter invitation token"
+              />
             )}
 
             {isRegister && (
-              <div>
-                <label className="block text-xs font-medium text-slate-300">Organization Name</label>
-                <div className="mt-1 relative rounded-md shadow-sm">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                    <Building className="h-4 w-4" />
-                  </div>
-                  <input
-                    type="text"
-                    required
-                    value={organizationName}
-                    onChange={(e) => setOrganizationName(e.target.value)}
-                    className="block w-full pl-10 pr-3 py-2 border border-slate-600 rounded-lg bg-slate-900 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="e.g. Acme Properties"
-                  />
-                </div>
-              </div>
+              <Input
+                label="Organization Name"
+                icon={Building}
+                required
+                value={organizationName}
+                onChange={(e) => setOrganizationName(e.target.value)}
+                placeholder="e.g. Apex Realty"
+              />
             )}
 
             {(isRegister || isAcceptInvite) && (
-              <div>
-                <label className="block text-xs font-medium text-slate-300">Full Name</label>
-                <div className="mt-1 relative rounded-md shadow-sm">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                    <User className="h-4 w-4" />
-                  </div>
-                  <input
-                    type="text"
-                    required
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="block w-full pl-10 pr-3 py-2 border border-slate-600 rounded-lg bg-slate-900 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="e.g. John Doe"
-                  />
-                </div>
-              </div>
+              <Input
+                label="Full Name"
+                icon={User}
+                required
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="e.g. Sarah Owner"
+              />
             )}
 
             {!isAcceptInvite && (
-              <div>
-                <label className="block text-xs font-medium text-slate-300">Email address</label>
-                <div className="mt-1 relative rounded-md shadow-sm">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                    <Mail className="h-4 w-4" />
-                  </div>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="block w-full pl-10 pr-3 py-2 border border-slate-600 rounded-lg bg-slate-900 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="broker@example.com"
-                  />
-                </div>
-              </div>
+              <Input
+                label="Email address"
+                type="email"
+                icon={Mail}
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="broker@example.com"
+              />
             )}
 
-            <div>
-              <label className="block text-xs font-medium text-slate-300">Password</label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <Lock className="h-4 w-4" />
-                </div>
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-2 border border-slate-600 rounded-lg bg-slate-900 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="••••••••"
-                />
-              </div>
-            </div>
+            <Input
+              label="Password"
+              type="password"
+              icon={Lock}
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+            />
 
-            <div>
-              <button
+            <div className="pt-2">
+              <Button
                 type="submit"
-                disabled={submitting}
-                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition"
+                variant="primary"
+                loading={submitting}
+                className="w-full justify-center bg-emerald-600 hover:bg-emerald-700"
               >
-                {submitting ? 'Processing...' : isAcceptInvite ? 'Join Organization' : isRegister ? 'Create Account & Org' : 'Sign In'}
-              </button>
+                {isAcceptInvite ? 'Join Organization' : isRegister ? 'Create Account & Org' : 'Sign In'}
+              </Button>
             </div>
           </form>
 
@@ -190,7 +155,7 @@ export default function LoginView() {
             {!isAcceptInvite && (
               <button
                 onClick={() => { setIsRegister(!isRegister); setError(''); }}
-                className="text-blue-400 hover:text-blue-300 font-medium"
+                className="text-emerald-400 hover:text-emerald-300 font-medium transition"
               >
                 {isRegister ? 'Already have an account? Sign in' : "Don't have an account? Register new organization"}
               </button>
@@ -198,7 +163,7 @@ export default function LoginView() {
 
             <button
               onClick={() => { setIsAcceptInvite(!isAcceptInvite); setIsRegister(false); setError(''); }}
-              className="text-slate-400 hover:text-slate-300"
+              className="text-slate-400 hover:text-slate-300 transition"
             >
               {isAcceptInvite ? 'Back to sign in' : 'Have an invitation token? Accept invite'}
             </button>

@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { GitCompare, Sparkles, Send, Calendar, AlertCircle } from 'lucide-react';
+import { GitCompare, Sparkles, Send, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Button } from '../components/Button.js';
+import { Badge } from '../components/Badge.js';
+import { EmptyState, LoadingState, ErrorState } from '../components/States.js';
 
 export default function MatchesView() {
   const navigate = useNavigate();
@@ -118,46 +121,36 @@ export default function MatchesView() {
   const currentProp = properties.find(p => p.id === selectedPropId);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-sans">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 font-sans">Deterministic Property Matching Engine</h1>
-          <p className="text-sm text-gray-500">Scoring requirements against property listings using explicit criterion weights</p>
+          <h1 className="text-xl font-bold text-slate-900">Deterministic Property Matching Engine</h1>
+          <p className="text-xs text-slate-500">Scoring requirements against property listings using explicit criterion weights</p>
         </div>
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl flex items-center space-x-2 text-sm">
-          <AlertCircle className="w-5 h-5 flex-shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
+      {error && <ErrorState message={error} onRetry={fetchData} />}
 
       {loading ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-500">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-          Loading requirements & property inventory...
-        </div>
+        <LoadingState message="Loading requirements & property inventory..." />
       ) : requirements.length === 0 || properties.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-500">
-          <GitCompare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-base font-semibold text-gray-700">Insufficient Data for Matching</p>
-          <p className="text-sm text-gray-500 mt-1">
-            Please ensure you have at least one active customer requirement and one property listing in your organization.
-          </p>
-        </div>
+        <EmptyState
+          icon={GitCompare}
+          title="Insufficient Data for Matching"
+          description="Please ensure you have at least one active customer requirement and one property listing in your organization."
+        />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column: Selector & Comparison */}
           <div className="lg:col-span-2 space-y-6">
             {/* Selection Controls */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Select Requirement</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Select Requirement</label>
                 <select
                   value={selectedReqId}
                   onChange={(e) => handleReqChange(e.target.value)}
-                  className="w-full p-2.5 border border-gray-300 rounded-lg text-sm bg-gray-50 font-medium"
+                  className="w-full p-2 border border-slate-300 rounded-lg text-xs bg-slate-50 font-medium text-slate-900"
                 >
                   {requirements.map((r) => (
                     <option key={r.id} value={r.id}>
@@ -168,11 +161,11 @@ export default function MatchesView() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Select Property</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Select Property</label>
                 <select
                   value={selectedPropId}
                   onChange={(e) => handlePropChange(e.target.value)}
-                  className="w-full p-2.5 border border-gray-300 rounded-lg text-sm bg-gray-50 font-medium"
+                  className="w-full p-2 border border-slate-300 rounded-lg text-xs bg-slate-50 font-medium text-slate-900"
                 >
                   {properties.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -184,79 +177,73 @@ export default function MatchesView() {
             </div>
 
             {/* Score Summary Box */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
-              <div className="flex items-center justify-between border-b pb-4">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-4">
                 <div>
-                  <span className="text-xs font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">
-                    Deterministic Match Score
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                    Deterministic Match Engine
                   </span>
-                  <h2 className="text-xl font-bold text-gray-900 mt-1">
+                  <h2 className="text-lg font-bold text-slate-900 mt-1">
                     {currentProp?.title}
                   </h2>
                 </div>
                 <div className="text-right">
-                  <span className="text-3xl font-extrabold text-emerald-600">
+                  <span className="text-3xl font-extrabold text-emerald-700 font-mono">
                     {scoring ? '...' : `${matchResult?.totalScorePercentage ?? 0}%`}
                   </span>
-                  <span className="block text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full mt-0.5">
-                    {matchResult?.matchLevel ?? 'EVALUATING'} MATCH
-                  </span>
+                  <div className="mt-0.5">
+                    <Badge variant="success" size="sm">
+                      {matchResult?.matchLevel ?? 'EVALUATING'} MATCH
+                    </Badge>
+                  </div>
                 </div>
               </div>
 
               {/* Comparison Grid */}
               <div className="grid grid-cols-2 gap-4">
                 {/* Requirement Box */}
-                <div className="bg-blue-50/60 p-4 rounded-xl border border-blue-100 space-y-2">
-                  <p className="text-xs font-bold text-blue-900 uppercase tracking-wider border-b border-blue-200 pb-1.5">
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                  <p className="text-[10px] font-bold text-slate-700 uppercase tracking-wider border-b border-slate-200 pb-1.5">
                     Tenant Requirement
                   </p>
-                  <div className="text-xs space-y-1 text-blue-950">
-                    <p><span className="font-semibold">BHK:</span> {currentReq?.minBedrooms}BHK</p>
-                    <p><span className="font-semibold">Budget:</span> ₹{currentReq?.maxBudget?.toLocaleString('en-IN')}</p>
-                    <p><span className="font-semibold">Furnishing:</span> {currentReq?.furnishingStatus}</p>
-                    <p><span className="font-semibold">Type:</span> {currentReq?.propertyType}</p>
+                  <div className="text-xs space-y-1 text-slate-800">
+                    <p><span className="font-semibold text-slate-500">BHK:</span> {currentReq?.minBedrooms}BHK</p>
+                    <p><span className="font-semibold text-slate-500">Budget:</span> ₹{currentReq?.maxBudget?.toLocaleString('en-IN')}</p>
+                    <p><span className="font-semibold text-slate-500">Furnishing:</span> {currentReq?.furnishingStatus}</p>
+                    <p><span className="font-semibold text-slate-500">Type:</span> {currentReq?.propertyType}</p>
                   </div>
                 </div>
 
                 {/* Property Box */}
-                <div className="bg-emerald-50/60 p-4 rounded-xl border border-emerald-100 space-y-2">
-                  <p className="text-xs font-bold text-emerald-900 uppercase tracking-wider border-b border-emerald-200 pb-1.5">
+                <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100 space-y-2">
+                  <p className="text-[10px] font-bold text-emerald-900 uppercase tracking-wider border-b border-emerald-200 pb-1.5">
                     Property Listing
                   </p>
                   <div className="text-xs space-y-1 text-emerald-950">
-                    <p><span className="font-semibold">BHK:</span> {currentProp?.bedrooms}BHK</p>
-                    <p><span className="font-semibold">Rent:</span> ₹{currentProp?.monthlyRent?.toLocaleString('en-IN')}</p>
-                    <p><span className="font-semibold">Furnishing:</span> {currentProp?.furnishingStatus}</p>
-                    <p><span className="font-semibold">Type:</span> {currentProp?.propertyType}</p>
+                    <p><span className="font-semibold text-emerald-700">BHK:</span> {currentProp?.bedrooms}BHK</p>
+                    <p><span className="font-semibold text-emerald-700">Rent:</span> ₹{currentProp?.monthlyRent?.toLocaleString('en-IN')}</p>
+                    <p><span className="font-semibold text-emerald-700">Furnishing:</span> {currentProp?.furnishingStatus}</p>
+                    <p><span className="font-semibold text-emerald-700">Type:</span> {currentProp?.propertyType}</p>
                   </div>
                 </div>
               </div>
 
               {/* Quick Actions */}
               <div className="flex items-center justify-end space-x-3 pt-2">
-                <button
-                  onClick={() => navigate('/whatsapp')}
-                  className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow"
-                >
-                  <Send className="w-4 h-4" />
-                  <span>Send Property Details</span>
-                </button>
-                <button
-                  onClick={() => navigate('/visits')}
-                  className="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow"
-                >
-                  <Calendar className="w-4 h-4" />
-                  <span>Schedule Site Visit</span>
-                </button>
+                <Button variant="secondary" icon={Send} onClick={() => navigate('/whatsapp')}>
+                  Send Details via WhatsApp
+                </Button>
+                <Button variant="primary" icon={Calendar} onClick={() => navigate('/visits')}>
+                  Schedule Site Visit
+                </Button>
               </div>
             </div>
           </div>
 
           {/* Right Column: Criteria Breakdown */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
-            <h3 className="font-bold text-gray-900 text-base border-b pb-3 flex items-center space-x-2">
-              <Sparkles className="w-5 h-5 text-amber-500" />
+          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-5 space-y-4">
+            <h3 className="font-bold text-slate-900 text-sm border-b border-slate-100 pb-3 flex items-center space-x-2">
+              <Sparkles className="w-4 h-4 text-amber-500" />
               <span>Weighted Criteria Breakdown</span>
             </h3>
 
@@ -264,16 +251,16 @@ export default function MatchesView() {
               {matchResult?.breakdown?.map((item: any) => (
                 <div key={item.criteriaName} className="space-y-1">
                   <div className="flex justify-between text-xs font-semibold">
-                    <span className="text-gray-700">{item.criteriaName} ({item.weightPercentage}%)</span>
-                    <span className="text-emerald-600 font-bold">+{item.weightedScore}%</span>
+                    <span className="text-slate-700">{item.criteriaName} ({item.weightPercentage}%)</span>
+                    <span className="text-emerald-700 font-bold font-mono">+{item.weightedScore}%</span>
                   </div>
-                  <div className="w-full bg-gray-100 rounded-full h-2">
+                  <div className="w-full bg-slate-100 rounded-full h-2">
                     <div
-                      className="bg-emerald-500 h-2 rounded-full"
+                      className="bg-emerald-600 h-2 rounded-full"
                       style={{ width: `${item.earnedScorePercentage}%` }}
-                    ></div>
+                    />
                   </div>
-                  <p className="text-[10px] text-gray-400">{item.details}</p>
+                  <p className="text-[10px] text-slate-400">{item.details}</p>
                 </div>
               ))}
             </div>
