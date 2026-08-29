@@ -111,6 +111,35 @@ export function createApp(customDb = defaultDb) {
   // =========================================================
   const authMiddleware = requireAuth(customDb);
 
+  // Customer 360 Aggregation Endpoints (Phase 10B)
+  app.get('/api/customers/:id/360', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const profile = await dashboardService.getCustomer360Profile(id, customDb, req.organizationId);
+      if (!profile) {
+        res.status(404).json({ success: false, error: 'Customer 360 profile not found or unauthorized' });
+        return;
+      }
+      res.status(200).json({ success: true, data: profile });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get('/api/contacts/:id/360', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const profile = await dashboardService.getCustomer360Profile(id, customDb, req.organizationId);
+      if (!profile) {
+        res.status(404).json({ success: false, error: 'Contact 360 profile not found or unauthorized' });
+        return;
+      }
+      res.status(200).json({ success: true, data: profile });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Dashboard Stats endpoint
   app.get('/api/dashboard/stats', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
     try {

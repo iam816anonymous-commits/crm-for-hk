@@ -3,7 +3,8 @@ import crypto from 'crypto';
 import { WhatsAppService } from './WhatsAppService.js';
 import { db as defaultDb } from '../db/index.js';
 import { sourceRecords, messages, requirements } from '../db/schema.js';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and } from 'drizzle-orm';
+import { requireAuth } from '../middleware/auth.js';
 
 export function createWhatsAppRouter(customDb = defaultDb) {
   const router = Router();
@@ -84,9 +85,14 @@ export function createWhatsAppRouter(customDb = defaultDb) {
     }
   });
 
-  // GET /api/whatsapp/messages - Retrieve ingested messages with raw payloads & extracted requirements
-  router.get('/messages', async (_req, res) => {
+  // GET /api/whatsapp/messages - Retrieve ingested messages with raw payloads & extracted requirements (AUTHENTICATED & TENANT SCOPED)
+  router.get('/messages', requireAuth(customDb), async (req: Request, res: Response) => {
     try {
+      const orgId = req.organizationId;
+      const whereCondition = orgId
+        ? and(eq(sourceRecords.sourceType, 'WHATSAPP'), eq(sourceRecords.organizationId, orgId))
+        : eq(sourceRecords.sourceType, 'WHATSAPP');
+
       const rawRecords = await customDb
         .select({
           sourceRecord: sourceRecords,
@@ -97,7 +103,7 @@ export function createWhatsAppRouter(customDb = defaultDb) {
         })
         .from(sourceRecords)
         .leftJoin(messages, eq(sourceRecords.externalId, messages.externalId))
-        .where(eq(sourceRecords.sourceType, 'WHATSAPP'))
+        .where(whereCondition)
         .orderBy(desc(sourceRecords.createdAt));
 
       // Also load linked requirements
