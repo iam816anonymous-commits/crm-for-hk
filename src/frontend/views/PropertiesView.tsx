@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Home, Plus, X } from 'lucide-react';
+import { Home, Plus, X, Edit2, Trash2 } from 'lucide-react';
 import { Button } from '../components/Button.js';
 import { Input } from '../components/Input.js';
 import { Badge } from '../components/Badge.js';
@@ -8,6 +8,7 @@ import { EmptyState, LoadingState, ErrorState } from '../components/States.js';
 export default function PropertiesView() {
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingProp, setEditingProp] = useState<any | null>(null);
   const [propertiesList, setPropertiesList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,13 +60,81 @@ export default function PropertiesView() {
     }
   };
 
+  const openCreateModal = () => {
+    setEditingProp(null);
+    setFormData({
+      ownerPhoneRaw: '',
+      ownerName: '',
+      title: '',
+      propertyType: 'APARTMENT',
+      listingType: 'RENT',
+      bedrooms: 2,
+      city: 'Bangalore',
+      address: '',
+      monthlyRent: '25000',
+      depositAmount: '100000',
+      maintenanceAmount: '2000',
+      furnishingStatus: 'SEMI_FURNISHED',
+      availableFrom: new Date().toISOString().split('T')[0],
+      description: '',
+      status: 'AVAILABLE',
+    });
+    setShowAddModal(true);
+  };
+
+  const openEditModal = (e: React.MouseEvent, prop: any) => {
+    e.stopPropagation();
+    setEditingProp(prop);
+    setFormData({
+      ownerPhoneRaw: prop.ownerPhoneRaw || '+919999999999',
+      ownerName: prop.ownerName || 'Owner',
+      title: prop.title || '',
+      propertyType: prop.propertyType || 'APARTMENT',
+      listingType: prop.listingType || 'RENT',
+      bedrooms: prop.bedrooms || 2,
+      city: prop.city || 'Bangalore',
+      address: prop.address || '',
+      monthlyRent: String(prop.monthlyRent || 0),
+      depositAmount: String(prop.depositAmount || 0),
+      maintenanceAmount: String(prop.maintenanceAmount || 0),
+      furnishingStatus: prop.furnishingStatus || 'SEMI_FURNISHED',
+      availableFrom: prop.availableFrom || new Date().toISOString().split('T')[0],
+      description: prop.description || '',
+      status: prop.status || 'AVAILABLE',
+    });
+    setShowAddModal(true);
+  };
+
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!window.confirm('Are you sure you want to delete this property listing?')) return;
+    try {
+      const token = localStorage.getItem('auth_token');
+      const res = await fetch(`/api/properties/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        fetchProperties();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete property listing');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error deleting property');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     try {
       const token = localStorage.getItem('auth_token');
-      const res = await fetch('/api/properties', {
-        method: 'POST',
+      const url = editingProp ? `/api/properties/${editingProp.id}` : '/api/properties';
+      const method = editingProp ? 'PATCH' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
@@ -94,7 +163,7 @@ export default function PropertiesView() {
         fetchProperties();
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to create property listing');
+        alert(data.error || 'Failed to save property listing');
       }
     } catch (err: any) {
       alert(err.message || 'Error submitting property');
@@ -112,7 +181,7 @@ export default function PropertiesView() {
           <h1 className="text-xl font-bold text-slate-900">Properties Inventory</h1>
           <p className="text-xs text-slate-500">Real estate listing inventory & owner management</p>
         </div>
-        <Button variant="primary" icon={Plus} onClick={() => setShowAddModal(true)}>
+        <Button variant="primary" icon={Plus} onClick={openCreateModal}>
           Add Property
         </Button>
       </div>
@@ -150,19 +219,35 @@ export default function PropertiesView() {
           title="No properties found"
           description="Add your first property listing to populate your organization's inventory."
           actionText="Add Property Listing"
-          onAction={() => setShowAddModal(true)}
+          onAction={openCreateModal}
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {filtered.map((prop) => (
-            <div key={prop.id} className="bg-white rounded-xl border border-slate-200 shadow-2xs p-4 space-y-3 hover:shadow-xs transition">
+            <div key={prop.id} className="bg-white rounded-xl border border-slate-200 shadow-2xs p-4 space-y-3 hover:shadow-xs transition relative group">
               <div className="flex items-start justify-between">
                 <Badge variant={prop.status === 'AVAILABLE' ? 'success' : 'neutral'}>
                   {prop.status}
                 </Badge>
-                <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
-                  {prop.propertyType} • {prop.listingType}
-                </span>
+                <div className="flex items-center space-x-1">
+                  <button
+                    onClick={(e) => openEditModal(e, prop)}
+                    className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition"
+                    title="Edit Property"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={(e) => handleDelete(e, prop.id)}
+                    className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition"
+                    title="Delete Property"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded ml-1">
+                    {prop.propertyType} • {prop.listingType}
+                  </span>
+                </div>
               </div>
               <h3 className="font-bold text-slate-900 text-sm">{prop.title}</h3>
               <p className="text-xs text-slate-500">{prop.address}, {prop.city}</p>
@@ -191,14 +276,14 @@ export default function PropertiesView() {
         </div>
       )}
 
-      {/* Add Property Modal */}
+      {/* Add/Edit Property Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl max-w-2xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <h2 className="text-lg font-bold text-slate-900 flex items-center space-x-2">
                 <Home className="w-5 h-5 text-emerald-600" />
-                <span>Add Property Listing</span>
+                <span>{editingProp ? 'Edit Property Listing' : 'Add Property Listing'}</span>
               </h2>
               <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600">
                 <X className="w-5 h-5" />
@@ -206,21 +291,23 @@ export default function PropertiesView() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  label="Owner Phone Number *"
-                  required
-                  placeholder="+91 98123 45678"
-                  value={formData.ownerPhoneRaw}
-                  onChange={(e) => setFormData({ ...formData, ownerPhoneRaw: e.target.value })}
-                />
-                <Input
-                  label="Owner Name"
-                  placeholder="e.g. Property Owner"
-                  value={formData.ownerName}
-                  onChange={(e) => setFormData({ ...formData, ownerName: e.target.value })}
-                />
-              </div>
+              {!editingProp && (
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    label="Owner Phone Number *"
+                    required
+                    placeholder="+91 98123 45678"
+                    value={formData.ownerPhoneRaw}
+                    onChange={(e) => setFormData({ ...formData, ownerPhoneRaw: e.target.value })}
+                  />
+                  <Input
+                    label="Owner Name"
+                    placeholder="e.g. Property Owner"
+                    value={formData.ownerName}
+                    onChange={(e) => setFormData({ ...formData, ownerName: e.target.value })}
+                  />
+                </div>
+              )}
 
               <Input
                 label="Property Title *"
@@ -289,7 +376,7 @@ export default function PropertiesView() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <Input
                   label="City / Location"
                   placeholder="Whitefield, Bangalore"
@@ -302,6 +389,18 @@ export default function PropertiesView() {
                   value={formData.availableFrom}
                   onChange={(e) => setFormData({ ...formData, availableFrom: e.target.value })}
                 />
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Status</label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    className="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white text-slate-900"
+                  >
+                    <option value="AVAILABLE">Available</option>
+                    <option value="OCCUPIED">Occupied</option>
+                    <option value="RESERVED">Reserved</option>
+                  </select>
+                </div>
               </div>
 
               <Input
@@ -316,7 +415,7 @@ export default function PropertiesView() {
                   Cancel
                 </Button>
                 <Button type="submit" variant="primary" loading={submitting}>
-                  Save Property Listing
+                  {editingProp ? 'Save Changes' : 'Save Property Listing'}
                 </Button>
               </div>
             </form>

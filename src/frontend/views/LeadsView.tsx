@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Target, ChevronRight, XCircle, Clock, Ban } from 'lucide-react';
+import { Target, ChevronRight, XCircle, Clock, Ban, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '../components/Badge.js';
 import { LoadingState, ErrorState } from '../components/States.js';
@@ -75,6 +75,26 @@ export default function LeadsView() {
     }
   };
 
+  const handleDeleteLead = async (leadId: string) => {
+    if (!window.confirm('Are you sure you want to delete this lead?')) return;
+    try {
+      const token = localStorage.getItem('auth_token');
+      const res = await fetch(`/api/leads/${leadId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        fetchLeads();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete lead');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error deleting lead');
+    }
+  };
+
   const advanceStage = (leadId: string, currentStage: string) => {
     const currentIndex = stages.indexOf(currentStage);
     if (currentIndex >= 0 && currentIndex < stages.length - 1) {
@@ -142,6 +162,13 @@ export default function LeadsView() {
                               >
                                 <XCircle className="w-3.5 h-3.5" />
                               </button>
+                              <button
+                                onClick={() => handleDeleteLead(lead.id)}
+                                title="Delete Lead"
+                                className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-rose-600"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </div>
                           </div>
 
@@ -189,8 +216,11 @@ export default function LeadsView() {
                       <p className="text-xs text-slate-400 italic">None</p>
                     ) : (
                       termLeads.map((l) => (
-                        <div key={l.id} className="text-xs font-medium text-slate-800 bg-white p-2 rounded border border-slate-200 my-1 font-mono">
-                          Lead #{l.id.substring(0, 8)} - {l.lostReason || 'No reason specified'}
+                        <div key={l.id} className="text-xs font-medium text-slate-800 bg-white p-2 rounded border border-slate-200 my-1 font-mono flex items-center justify-between">
+                          <span>Lead #{l.id.substring(0, 8)} - {l.lostReason || 'No reason specified'}</span>
+                          <button onClick={() => handleDeleteLead(l.id)} className="text-slate-400 hover:text-rose-600 ml-2">
+                            <Trash2 className="w-3 h-3" />
+                          </button>
                         </div>
                       ))
                     )}

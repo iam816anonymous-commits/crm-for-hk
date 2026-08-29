@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ClipboardList, Plus, X } from 'lucide-react';
+import { ClipboardList, Plus, X, Edit2, Trash2 } from 'lucide-react';
 import { Button } from '../components/Button.js';
 import { Input } from '../components/Input.js';
 import { ProvenanceBadge } from '../components/ProvenanceBadge.js';
@@ -7,6 +7,7 @@ import { EmptyState, LoadingState, ErrorState } from '../components/States.js';
 
 export default function RequirementsView() {
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingReq, setEditingReq] = useState<any | null>(null);
   const [reqs, setReqs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -55,13 +56,83 @@ export default function RequirementsView() {
     }
   };
 
+  const openCreateModal = () => {
+    setEditingReq(null);
+    setFormData({
+      customerPhoneRaw: '',
+      customerName: '',
+      intent: 'RENT',
+      propertyType: 'APARTMENT',
+      minBedrooms: 2,
+      preferredLocations: 'Whitefield',
+      minBudget: '20000',
+      maxBudget: '25000',
+      furnishingStatus: 'SEMI_FURNISHED',
+      moveInDate: new Date().toISOString().split('T')[0],
+      occupancyType: 'FAMILY',
+      specialRequirements: '',
+    });
+    setShowAddModal(true);
+  };
+
+  const openEditModal = (e: React.MouseEvent, r: any) => {
+    e.stopPropagation();
+    setEditingReq(r);
+    let loc = r.preferredLocations;
+    try {
+      const parsed = JSON.parse(r.preferredLocations);
+      if (Array.isArray(parsed)) loc = parsed.join(', ');
+    } catch {
+      // keep raw string
+    }
+
+    setFormData({
+      customerPhoneRaw: r.customerPhoneRaw || '+919876543210',
+      customerName: r.customerName || 'Customer',
+      intent: r.intent || 'RENT',
+      propertyType: r.propertyType || 'APARTMENT',
+      minBedrooms: r.minBedrooms || 2,
+      preferredLocations: loc || '',
+      minBudget: String(r.minBudget || 0),
+      maxBudget: String(r.maxBudget || 0),
+      furnishingStatus: r.furnishingStatus || 'SEMI_FURNISHED',
+      moveInDate: r.moveInDate || new Date().toISOString().split('T')[0],
+      occupancyType: r.occupancyType || 'FAMILY',
+      specialRequirements: r.specialRequirements || '',
+    });
+    setShowAddModal(true);
+  };
+
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!window.confirm('Are you sure you want to delete this requirement?')) return;
+    try {
+      const token = localStorage.getItem('auth_token');
+      const res = await fetch(`/api/requirements/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        fetchRequirements();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete requirement');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error deleting requirement');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     try {
       const token = localStorage.getItem('auth_token');
-      const res = await fetch('/api/requirements', {
-        method: 'POST',
+      const url = editingReq ? `/api/requirements/${editingReq.id}` : '/api/requirements';
+      const method = editingReq ? 'PATCH' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
@@ -103,7 +174,7 @@ export default function RequirementsView() {
           <h1 className="text-xl font-bold text-slate-900 font-sans">Requirements Ledger</h1>
           <p className="text-xs text-slate-500">Tenant and buyer criteria captured manually or via AI intelligence</p>
         </div>
-        <Button variant="primary" icon={Plus} onClick={() => setShowAddModal(true)}>
+        <Button variant="primary" icon={Plus} onClick={openCreateModal}>
           Add Requirement
         </Button>
       </div>
@@ -119,7 +190,7 @@ export default function RequirementsView() {
             title="No active requirements"
             description="Capture tenant criteria manually or receive inbound WhatsApp enquiries."
             actionText="Add Requirement"
-            onAction={() => setShowAddModal(true)}
+            onAction={openCreateModal}
           />
         ) : (
           <table className="w-full text-left text-xs">
@@ -132,6 +203,7 @@ export default function RequirementsView() {
                 <th className="px-5 py-3">Occupancy</th>
                 <th className="px-5 py-3">Move-In Date</th>
                 <th className="px-5 py-3">Provenance</th>
+                <th className="px-5 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -157,6 +229,24 @@ export default function RequirementsView() {
                         isVerifiedManually={r.isVerifiedManually}
                       />
                     </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <div className="flex items-center justify-end space-x-1">
+                        <button
+                          onClick={(e) => openEditModal(e, r)}
+                          className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition"
+                          title="Edit Requirement"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => handleDelete(e, r.id)}
+                          className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition"
+                          title="Delete Requirement"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -165,14 +255,14 @@ export default function RequirementsView() {
         )}
       </div>
 
-      {/* Add Requirement Modal */}
+      {/* Add/Edit Requirement Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl max-w-2xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <h2 className="text-lg font-bold text-slate-900 flex items-center space-x-2">
                 <ClipboardList className="w-5 h-5 text-emerald-600" />
-                <span>Add Customer Requirement</span>
+                <span>{editingReq ? 'Edit Requirement' : 'Add Customer Requirement'}</span>
               </h2>
               <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600">
                 <X className="w-5 h-5" />
@@ -180,21 +270,23 @@ export default function RequirementsView() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  label="Customer Phone Number *"
-                  required
-                  placeholder="+91 98765 43210"
-                  value={formData.customerPhoneRaw}
-                  onChange={(e) => setFormData({ ...formData, customerPhoneRaw: e.target.value })}
-                />
-                <Input
-                  label="Customer Name"
-                  placeholder="e.g. Customer Name"
-                  value={formData.customerName}
-                  onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                />
-              </div>
+              {!editingReq && (
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    label="Customer Phone Number *"
+                    required
+                    placeholder="+91 98765 43210"
+                    value={formData.customerPhoneRaw}
+                    onChange={(e) => setFormData({ ...formData, customerPhoneRaw: e.target.value })}
+                  />
+                  <Input
+                    label="Customer Name"
+                    placeholder="e.g. Customer Name"
+                    value={formData.customerName}
+                    onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
+                  />
+                </div>
+              )}
 
               <div className="grid grid-cols-3 gap-4">
                 <div>
@@ -281,7 +373,7 @@ export default function RequirementsView() {
                   Cancel
                 </Button>
                 <Button type="submit" variant="primary" loading={submitting}>
-                  Save Requirement
+                  {editingReq ? 'Save Changes' : 'Save Requirement'}
                 </Button>
               </div>
             </form>

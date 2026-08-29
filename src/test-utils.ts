@@ -1,5 +1,6 @@
 import { signToken, AuthenticatedUser } from './middleware/auth.js';
 import { organizations, users, sessions } from './db/schema.js';
+import { eq } from 'drizzle-orm';
 
 export async function createTestAuthUser(customDb: any, overrides?: Partial<AuthenticatedUser>) {
   const orgId = overrides?.organizationId || 'test-org-id-5678';
@@ -20,22 +21,28 @@ export async function createTestAuthUser(customDb: any, overrides?: Partial<Auth
   }
 
   // Ensure user exists
-  try {
-    customDb.insert(users).values({
-      id: userId,
-      organizationId: orgId,
-      email: email,
-      passwordHash: 'hash',
-      fullName: fullName,
-      role: role,
-      isActive: true,
-    }).run();
-  } catch {
-    // ignore if already exists
+  const existingUser = customDb.select().from(users).where(eq(users.id, userId)).get();
+  let actualUserId = userId;
+  if (!existingUser) {
+    try {
+      customDb.insert(users).values({
+        id: userId,
+        organizationId: orgId,
+        email: email,
+        passwordHash: 'hash',
+        fullName: fullName,
+        role: role,
+        isActive: true,
+      }).run();
+    } catch {
+      // ignore constraint error if concurrent
+    }
+  } else {
+    actualUserId = existingUser.id;
   }
 
   const authenticatedUser: AuthenticatedUser = {
-    id: userId,
+    id: actualUserId,
     email,
     fullName,
     role,
@@ -47,11 +54,15 @@ export async function createTestAuthUser(customDb: any, overrides?: Partial<Auth
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
   // Insert session
-  customDb.insert(sessions).values({
-    userId: userId,
-    token: token,
-    expiresAt,
-  }).run();
+  try {
+    customDb.insert(sessions).values({
+      userId: actualUserId,
+      token: token,
+      expiresAt,
+    }).run();
+  } catch {
+    // ignore if session already exists
+  }
 
   return { token, user: authenticatedUser };
 }

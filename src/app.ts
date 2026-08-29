@@ -216,11 +216,62 @@ export function createApp(customDb = defaultDb) {
   });
 
   // Contacts REST API
+  app.get('/api/contacts', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const results = await dashboardService.searchContacts('', customDb, req.organizationId);
+      res.status(200).json({ success: true, data: results });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get('/api/contacts/:id', authMiddleware, (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const contact = domainService.getContact(id, req.organizationId);
+      if (!contact) {
+        res.status(404).json({ success: false, error: 'Contact not found or unauthorized' });
+        return;
+      }
+      res.status(200).json({ success: true, data: contact });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.post('/api/contacts', authMiddleware, requireRole(['ADMIN', 'BROKER', 'STAFF']), (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = CreateContactSchema.parse(req.body);
       const contact = domainService.createOrGetContact(validated.phoneRaw, validated, req.organizationId);
       res.status(201).json({ success: true, data: contact });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.patch('/api/contacts/:id', authMiddleware, requireRole(['ADMIN', 'BROKER', 'STAFF']), (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const updated = domainService.updateContact(id, req.body, req.organizationId);
+      if (!updated) {
+        res.status(404).json({ success: false, error: 'Contact not found or unauthorized' });
+        return;
+      }
+      res.status(200).json({ success: true, data: updated });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.delete('/api/contacts/:id', authMiddleware, requireRole(['ADMIN', 'BROKER', 'STAFF']), (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const deleted = domainService.deleteContact(id, req.organizationId);
+      if (!deleted) {
+        res.status(404).json({ success: false, error: 'Contact not found or unauthorized' });
+        return;
+      }
+      res.status(200).json({ success: true, message: 'Contact deleted successfully' });
     } catch (error) {
       next(error);
     }
@@ -258,11 +309,53 @@ export function createApp(customDb = defaultDb) {
     }
   });
 
+  app.get('/api/properties/:id', authMiddleware, (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const property = domainService.getProperty(id, req.organizationId);
+      if (!property) {
+        res.status(404).json({ success: false, error: 'Property not found or unauthorized' });
+        return;
+      }
+      res.status(200).json({ success: true, data: property });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.post('/api/properties', authMiddleware, requireRole(['ADMIN', 'BROKER', 'STAFF']), (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = CreatePropertySchema.parse(req.body);
       const property = domainService.createProperty({ ...validated, organizationId: req.organizationId });
       res.status(201).json({ success: true, data: property });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.patch('/api/properties/:id', authMiddleware, requireRole(['ADMIN', 'BROKER', 'STAFF']), (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const updated = domainService.updateProperty(id, req.body, req.organizationId);
+      if (!updated) {
+        res.status(404).json({ success: false, error: 'Property not found or unauthorized' });
+        return;
+      }
+      res.status(200).json({ success: true, data: updated });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.delete('/api/properties/:id', authMiddleware, requireRole(['ADMIN', 'BROKER', 'STAFF']), (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const deleted = domainService.deleteProperty(id, req.organizationId);
+      if (!deleted) {
+        res.status(404).json({ success: false, error: 'Property not found or unauthorized' });
+        return;
+      }
+      res.status(200).json({ success: true, message: 'Property deleted successfully' });
     } catch (error) {
       next(error);
     }
@@ -278,6 +371,20 @@ export function createApp(customDb = defaultDb) {
     }
   });
 
+  app.get('/api/requirements/:id', authMiddleware, (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const requirement = domainService.getRequirement(id, req.organizationId);
+      if (!requirement) {
+        res.status(404).json({ success: false, error: 'Requirement not found or unauthorized' });
+        return;
+      }
+      res.status(200).json({ success: true, data: requirement });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.post('/api/requirements', authMiddleware, requireRole(['ADMIN', 'BROKER', 'STAFF']), (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = CreateRequirementSchema.parse(req.body);
@@ -288,11 +395,53 @@ export function createApp(customDb = defaultDb) {
     }
   });
 
+  app.patch('/api/requirements/:id', authMiddleware, requireRole(['ADMIN', 'BROKER', 'STAFF']), (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const updated = domainService.updateRequirement(id, req.body, req.organizationId);
+      if (!updated) {
+        res.status(404).json({ success: false, error: 'Requirement not found or unauthorized' });
+        return;
+      }
+      res.status(200).json({ success: true, data: updated });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.delete('/api/requirements/:id', authMiddleware, requireRole(['ADMIN', 'BROKER', 'STAFF']), (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const deleted = domainService.deleteRequirement(id, req.organizationId);
+      if (!deleted) {
+        res.status(404).json({ success: false, error: 'Requirement not found or unauthorized' });
+        return;
+      }
+      res.status(200).json({ success: true, message: 'Requirement deleted successfully' });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Leads API: List Leads
   app.get('/api/leads', authMiddleware, (req: Request, res: Response, next: NextFunction) => {
     try {
       const leadsList = domainService.listLeads(req.organizationId);
       res.status(200).json({ success: true, data: leadsList });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get('/api/leads/:id', authMiddleware, (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const lead = domainService.getLead(id, req.organizationId);
+      if (!lead) {
+        res.status(404).json({ success: false, error: 'Lead not found or unauthorized' });
+        return;
+      }
+      res.status(200).json({ success: true, data: lead });
     } catch (error) {
       next(error);
     }
@@ -309,6 +458,20 @@ export function createApp(customDb = defaultDb) {
         return;
       }
       res.status(200).json({ success: true, data: updatedLead });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.delete('/api/leads/:id', authMiddleware, requireRole(['ADMIN', 'BROKER', 'STAFF']), (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const deleted = domainService.deleteLead(id, req.organizationId);
+      if (!deleted) {
+        res.status(404).json({ success: false, error: 'Lead not found or unauthorized' });
+        return;
+      }
+      res.status(200).json({ success: true, message: 'Lead deleted successfully' });
     } catch (error) {
       next(error);
     }

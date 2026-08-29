@@ -253,6 +253,54 @@ export class DomainService {
     });
   }
 
+  // Extended CRUD methods for Contacts
+  getContact(id: string, organizationId?: string) {
+    return this.contactRepo.getContact(id, organizationId, this.dbConn);
+  }
+
+  updateContact(id: string, data: any, organizationId?: string) {
+    return this.contactRepo.updateContact(id, data, organizationId, this.dbConn);
+  }
+
+  deleteContact(id: string, organizationId?: string) {
+    return this.contactRepo.deleteContact(id, organizationId, this.dbConn);
+  }
+
+  // Extended CRUD methods for Properties
+  getProperty(id: string, organizationId?: string) {
+    return this.propertyRepo.getPropertyById(id, organizationId, this.dbConn);
+  }
+
+  updateProperty(id: string, updates: any, organizationId?: string) {
+    return this.propertyRepo.updateProperty(id, updates, organizationId, this.dbConn);
+  }
+
+  deleteProperty(id: string, organizationId?: string) {
+    return this.propertyRepo.deleteProperty(id, organizationId, this.dbConn);
+  }
+
+  // Extended CRUD methods for Requirements
+  getRequirement(id: string, organizationId?: string) {
+    return this.requirementRepo.getRequirementById(id, organizationId, this.dbConn);
+  }
+
+  updateRequirement(id: string, updates: any, organizationId?: string) {
+    return this.requirementRepo.updateRequirement(id, updates, organizationId, this.dbConn);
+  }
+
+  deleteRequirement(id: string, organizationId?: string) {
+    return this.requirementRepo.deleteRequirement(id, organizationId, this.dbConn);
+  }
+
+  // Extended CRUD methods for Leads
+  getLead(id: string, organizationId?: string) {
+    return this.leadRepo.getLeadById(id, organizationId, this.dbConn);
+  }
+
+  deleteLead(id: string, organizationId?: string) {
+    return this.leadRepo.deleteLead(id, organizationId, this.dbConn);
+  }
+
   // Phase 7: Human Approval System methods
   getPendingReviews(organizationId?: string) {
     let query = this.dbConn.select({

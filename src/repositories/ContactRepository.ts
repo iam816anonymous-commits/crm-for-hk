@@ -84,6 +84,37 @@ export class ContactRepository {
     return newCustomer;
   }
 
+  getContact(id: string, organizationId?: string, dbTx = db) {
+    if (organizationId) {
+      return dbTx.select().from(contacts).where(and(eq(contacts.id, id), eq(contacts.organizationId, organizationId))).get() || null;
+    }
+    return dbTx.select().from(contacts).where(eq(contacts.id, id)).get() || null;
+  }
+
+  updateContact(id: string, data: Partial<typeof contacts.$inferInsert>, organizationId?: string, dbTx = db) {
+    const existing = this.getContact(id, organizationId, dbTx);
+    if (!existing) return null;
+
+    const [updated] = dbTx.update(contacts)
+      .set({
+        ...data,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(contacts.id, id))
+      .returning()
+      .all();
+
+    return updated || null;
+  }
+
+  deleteContact(id: string, organizationId?: string, dbTx = db) {
+    const existing = this.getContact(id, organizationId, dbTx);
+    if (!existing) return false;
+
+    dbTx.delete(contacts).where(eq(contacts.id, id)).run();
+    return true;
+  }
+
   getOrCreateOwnerRole(contactId: string, taxId?: string, companyName?: string, notes?: string, organizationId?: string, dbTx = db) {
     const existing = dbTx.select().from(owners).where(eq(owners.contactId, contactId)).get();
     if (existing) {
