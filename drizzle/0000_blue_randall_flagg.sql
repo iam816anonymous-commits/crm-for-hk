@@ -1,15 +1,18 @@
 CREATE TABLE `audit_logs` (
 	`id` text PRIMARY KEY NOT NULL,
+	`organization_id` text,
 	`table_name` text NOT NULL,
 	`record_id` text NOT NULL,
 	`action` text NOT NULL,
 	`performed_by` text NOT NULL,
 	`old_values` text,
 	`new_values` text,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL
+	`created_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
+	FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
 CREATE INDEX `idx_audit_logs_record` ON `audit_logs` (`table_name`,`record_id`);--> statement-breakpoint
+CREATE INDEX `idx_audit_logs_org_id` ON `audit_logs` (`organization_id`);--> statement-breakpoint
 CREATE TABLE `calls` (
 	`id` text PRIMARY KEY NOT NULL,
 	`interaction_id` text NOT NULL,
@@ -20,13 +23,18 @@ CREATE TABLE `calls` (
 	`call_status` text NOT NULL,
 	`recording_url` text,
 	`transcript` text,
+	`device_id` text,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
 	FOREIGN KEY (`interaction_id`) REFERENCES `interactions`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
+CREATE UNIQUE INDEX `calls_external_call_sid_unique` ON `calls` (`external_call_sid`);--> statement-breakpoint
 CREATE INDEX `idx_calls_interaction_id` ON `calls` (`interaction_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `idx_calls_external_sid` ON `calls` (`external_call_sid`);--> statement-breakpoint
+CREATE INDEX `idx_calls_from_to` ON `calls` (`from_number`,`to_number`);--> statement-breakpoint
 CREATE TABLE `contacts` (
 	`id` text PRIMARY KEY NOT NULL,
+	`organization_id` text,
 	`phone_raw` text NOT NULL,
 	`phone_normalized` text NOT NULL,
 	`first_name` text,
@@ -36,23 +44,28 @@ CREATE TABLE `contacts` (
 	`notes` text,
 	`is_verified_manually` integer DEFAULT false NOT NULL,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
-	`updated_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL
+	`updated_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
+	FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `contacts_phone_normalized_unique` ON `contacts` (`phone_normalized`);--> statement-breakpoint
-CREATE UNIQUE INDEX `idx_contacts_phone_normalized` ON `contacts` (`phone_normalized`);--> statement-breakpoint
+CREATE INDEX `idx_contacts_phone_normalized` ON `contacts` (`phone_normalized`);--> statement-breakpoint
+CREATE INDEX `idx_contacts_org_id` ON `contacts` (`organization_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `idx_contacts_org_phone` ON `contacts` (`organization_id`,`phone_normalized`);--> statement-breakpoint
 CREATE TABLE `customers` (
 	`id` text PRIMARY KEY NOT NULL,
+	`organization_id` text,
 	`contact_id` text NOT NULL,
 	`customer_type` text DEFAULT 'TENANT' NOT NULL,
 	`status` text DEFAULT 'ACTIVE' NOT NULL,
 	`notes` text,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
 	`updated_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
+	FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`contact_id`) REFERENCES `contacts`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
 CREATE INDEX `idx_customers_contact_id` ON `customers` (`contact_id`);--> statement-breakpoint
+CREATE INDEX `idx_customers_org_id` ON `customers` (`organization_id`);--> statement-breakpoint
 CREATE TABLE `extraction_runs` (
 	`id` text PRIMARY KEY NOT NULL,
 	`source_record_id` text NOT NULL,
@@ -68,6 +81,7 @@ CREATE TABLE `extraction_runs` (
 CREATE INDEX `idx_extraction_runs_source_record_id` ON `extraction_runs` (`source_record_id`);--> statement-breakpoint
 CREATE TABLE `followups` (
 	`id` text PRIMARY KEY NOT NULL,
+	`organization_id` text,
 	`lead_id` text NOT NULL,
 	`customer_id` text NOT NULL,
 	`assigned_user_id` text,
@@ -77,6 +91,7 @@ CREATE TABLE `followups` (
 	`notes` text,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
 	`updated_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
+	FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`lead_id`) REFERENCES `leads`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`customer_id`) REFERENCES `customers`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`assigned_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null
@@ -84,8 +99,10 @@ CREATE TABLE `followups` (
 --> statement-breakpoint
 CREATE INDEX `idx_followups_due_date` ON `followups` (`due_date`,`status`);--> statement-breakpoint
 CREATE INDEX `idx_followups_lead_id` ON `followups` (`lead_id`);--> statement-breakpoint
+CREATE INDEX `idx_followups_org_id` ON `followups` (`organization_id`);--> statement-breakpoint
 CREATE TABLE `interactions` (
 	`id` text PRIMARY KEY NOT NULL,
+	`organization_id` text,
 	`contact_id` text NOT NULL,
 	`customer_id` text,
 	`lead_id` text,
@@ -96,6 +113,7 @@ CREATE TABLE `interactions` (
 	`sentiment` text,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
 	`updated_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
+	FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`contact_id`) REFERENCES `contacts`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`customer_id`) REFERENCES `customers`(`id`) ON UPDATE no action ON DELETE set null,
 	FOREIGN KEY (`lead_id`) REFERENCES `leads`(`id`) ON UPDATE no action ON DELETE set null,
@@ -105,8 +123,27 @@ CREATE TABLE `interactions` (
 CREATE INDEX `idx_interactions_contact_id` ON `interactions` (`contact_id`);--> statement-breakpoint
 CREATE INDEX `idx_interactions_customer_id` ON `interactions` (`customer_id`);--> statement-breakpoint
 CREATE INDEX `idx_interactions_lead_id` ON `interactions` (`lead_id`);--> statement-breakpoint
+CREATE INDEX `idx_interactions_org_id` ON `interactions` (`organization_id`);--> statement-breakpoint
+CREATE TABLE `invitations` (
+	`id` text PRIMARY KEY NOT NULL,
+	`organization_id` text NOT NULL,
+	`email` text NOT NULL,
+	`role` text DEFAULT 'BROKER' NOT NULL,
+	`token` text NOT NULL,
+	`status` text DEFAULT 'PENDING' NOT NULL,
+	`expires_at` text NOT NULL,
+	`invited_by` text,
+	`created_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
+	FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`invited_by`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `invitations_token_unique` ON `invitations` (`token`);--> statement-breakpoint
+CREATE UNIQUE INDEX `idx_invitations_token` ON `invitations` (`token`);--> statement-breakpoint
+CREATE INDEX `idx_invitations_org_email` ON `invitations` (`organization_id`,`email`);--> statement-breakpoint
 CREATE TABLE `leads` (
 	`id` text PRIMARY KEY NOT NULL,
+	`organization_id` text,
 	`customer_id` text NOT NULL,
 	`requirement_id` text,
 	`matched_property_id` text,
@@ -117,6 +154,7 @@ CREATE TABLE `leads` (
 	`lost_reason` text,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
 	`updated_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
+	FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`customer_id`) REFERENCES `customers`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`requirement_id`) REFERENCES `requirements`(`id`) ON UPDATE no action ON DELETE set null,
 	FOREIGN KEY (`matched_property_id`) REFERENCES `properties`(`id`) ON UPDATE no action ON DELETE set null,
@@ -124,6 +162,7 @@ CREATE TABLE `leads` (
 );
 --> statement-breakpoint
 CREATE INDEX `idx_leads_customer_id` ON `leads` (`customer_id`);--> statement-breakpoint
+CREATE INDEX `idx_leads_org_id` ON `leads` (`organization_id`);--> statement-breakpoint
 CREATE INDEX `idx_leads_stage` ON `leads` (`stage`);--> statement-breakpoint
 CREATE TABLE `messages` (
 	`id` text PRIMARY KEY NOT NULL,
@@ -140,20 +179,31 @@ CREATE TABLE `messages` (
 );
 --> statement-breakpoint
 CREATE INDEX `idx_messages_interaction_id` ON `messages` (`interaction_id`);--> statement-breakpoint
+CREATE TABLE `organizations` (
+	`id` text PRIMARY KEY NOT NULL,
+	`name` text NOT NULL,
+	`created_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
+	`updated_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE `owners` (
 	`id` text PRIMARY KEY NOT NULL,
+	`organization_id` text,
 	`contact_id` text NOT NULL,
 	`tax_id` text,
 	`company_name` text,
 	`notes` text,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
 	`updated_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
+	FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`contact_id`) REFERENCES `contacts`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
 CREATE INDEX `idx_owners_contact_id` ON `owners` (`contact_id`);--> statement-breakpoint
+CREATE INDEX `idx_owners_org_id` ON `owners` (`organization_id`);--> statement-breakpoint
 CREATE TABLE `properties` (
 	`id` text PRIMARY KEY NOT NULL,
+	`organization_id` text,
 	`owner_id` text NOT NULL,
 	`title` text NOT NULL,
 	`description` text,
@@ -170,14 +220,19 @@ CREATE TABLE `properties` (
 	`monthly_rent` real,
 	`sale_price` real,
 	`deposit_amount` real,
+	`maintenance_amount` real DEFAULT 0,
+	`available_from` text,
+	`photos` text DEFAULT '[]',
 	`status` text DEFAULT 'AVAILABLE' NOT NULL,
 	`is_verified_manually` integer DEFAULT false NOT NULL,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
 	`updated_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
+	FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`owner_id`) REFERENCES `owners`(`id`) ON UPDATE no action ON DELETE restrict
 );
 --> statement-breakpoint
 CREATE INDEX `idx_properties_owner_id` ON `properties` (`owner_id`);--> statement-breakpoint
+CREATE INDEX `idx_properties_org_id` ON `properties` (`organization_id`);--> statement-breakpoint
 CREATE INDEX `idx_properties_status` ON `properties` (`status`);--> statement-breakpoint
 CREATE INDEX `idx_properties_city_type` ON `properties` (`city`,`property_type`);--> statement-breakpoint
 CREATE TABLE `property_media` (
@@ -194,6 +249,7 @@ CREATE TABLE `property_media` (
 CREATE INDEX `idx_property_media_property_id` ON `property_media` (`property_id`);--> statement-breakpoint
 CREATE TABLE `requirements` (
 	`id` text PRIMARY KEY NOT NULL,
+	`organization_id` text,
 	`customer_id` text NOT NULL,
 	`intent` text NOT NULL,
 	`property_type` text,
@@ -205,6 +261,8 @@ CREATE TABLE `requirements` (
 	`max_budget` real,
 	`furnishing_status` text,
 	`move_in_date` text,
+	`occupancy_type` text,
+	`special_requirements` text,
 	`notes` text,
 	`is_active` integer DEFAULT true NOT NULL,
 	`is_verified_manually` integer DEFAULT false NOT NULL,
@@ -212,26 +270,44 @@ CREATE TABLE `requirements` (
 	`extraction_confidence` real,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
 	`updated_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
+	FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`customer_id`) REFERENCES `customers`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`source_record_id`) REFERENCES `source_records`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
 CREATE INDEX `idx_requirements_customer_id` ON `requirements` (`customer_id`);--> statement-breakpoint
+CREATE INDEX `idx_requirements_org_id` ON `requirements` (`organization_id`);--> statement-breakpoint
+CREATE TABLE `sessions` (
+	`id` text PRIMARY KEY NOT NULL,
+	`user_id` text NOT NULL,
+	`token` text NOT NULL,
+	`expires_at` text NOT NULL,
+	`created_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `sessions_token_unique` ON `sessions` (`token`);--> statement-breakpoint
+CREATE UNIQUE INDEX `idx_sessions_token` ON `sessions` (`token`);--> statement-breakpoint
+CREATE INDEX `idx_sessions_user_id` ON `sessions` (`user_id`);--> statement-breakpoint
 CREATE TABLE `source_records` (
 	`id` text PRIMARY KEY NOT NULL,
+	`organization_id` text,
 	`source_type` text NOT NULL,
 	`external_id` text,
 	`sender_identifier` text,
 	`payload` text NOT NULL,
 	`media_url` text,
 	`checksum` text,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL
+	`created_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
+	FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
 CREATE INDEX `idx_source_records_type` ON `source_records` (`source_type`);--> statement-breakpoint
 CREATE INDEX `idx_source_records_external_id` ON `source_records` (`external_id`);--> statement-breakpoint
+CREATE INDEX `idx_source_records_org_id` ON `source_records` (`organization_id`);--> statement-breakpoint
 CREATE TABLE `transactions` (
 	`id` text PRIMARY KEY NOT NULL,
+	`organization_id` text,
 	`property_id` text NOT NULL,
 	`customer_id` text NOT NULL,
 	`owner_id` text NOT NULL,
@@ -245,6 +321,7 @@ CREATE TABLE `transactions` (
 	`contract_url` text,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
 	`updated_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
+	FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`property_id`) REFERENCES `properties`(`id`) ON UPDATE no action ON DELETE restrict,
 	FOREIGN KEY (`customer_id`) REFERENCES `customers`(`id`) ON UPDATE no action ON DELETE restrict,
 	FOREIGN KEY (`owner_id`) REFERENCES `owners`(`id`) ON UPDATE no action ON DELETE restrict,
@@ -254,21 +331,27 @@ CREATE TABLE `transactions` (
 CREATE INDEX `idx_transactions_property_id` ON `transactions` (`property_id`);--> statement-breakpoint
 CREATE INDEX `idx_transactions_customer_id` ON `transactions` (`customer_id`);--> statement-breakpoint
 CREATE INDEX `idx_transactions_owner_id` ON `transactions` (`owner_id`);--> statement-breakpoint
+CREATE INDEX `idx_transactions_org_id` ON `transactions` (`organization_id`);--> statement-breakpoint
 CREATE TABLE `users` (
 	`id` text PRIMARY KEY NOT NULL,
+	`organization_id` text,
 	`email` text NOT NULL,
 	`password_hash` text NOT NULL,
 	`full_name` text NOT NULL,
-	`role` text DEFAULT 'AGENT' NOT NULL,
+	`role` text DEFAULT 'BROKER' NOT NULL,
 	`is_active` integer DEFAULT true NOT NULL,
+	`last_login_at` text,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
-	`updated_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL
+	`updated_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
+	FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `users_email_unique` ON `users` (`email`);--> statement-breakpoint
 CREATE UNIQUE INDEX `idx_users_email` ON `users` (`email`);--> statement-breakpoint
+CREATE INDEX `idx_users_organization_id` ON `users` (`organization_id`);--> statement-breakpoint
 CREATE TABLE `visits` (
 	`id` text PRIMARY KEY NOT NULL,
+	`organization_id` text,
 	`property_id` text NOT NULL,
 	`customer_id` text NOT NULL,
 	`lead_id` text,
@@ -279,10 +362,12 @@ CREATE TABLE `visits` (
 	`rating` integer,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
 	`updated_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
+	FOREIGN KEY (`organization_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`property_id`) REFERENCES `properties`(`id`) ON UPDATE no action ON DELETE restrict,
 	FOREIGN KEY (`customer_id`) REFERENCES `customers`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`lead_id`) REFERENCES `leads`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
 CREATE INDEX `idx_visits_property_id` ON `visits` (`property_id`);--> statement-breakpoint
-CREATE INDEX `idx_visits_customer_id` ON `visits` (`customer_id`);
+CREATE INDEX `idx_visits_customer_id` ON `visits` (`customer_id`);--> statement-breakpoint
+CREATE INDEX `idx_visits_org_id` ON `visits` (`organization_id`);

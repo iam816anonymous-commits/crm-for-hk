@@ -1,4 +1,4 @@
-import { db } from '../db/index.js';
+import { db as defaultDb } from '../db/index.js';
 import { sourceRecords, interactions, messages, requirements, extractionRuns, auditLogs } from '../db/schema.js';
 import { DomainService } from '../services/DomainService.js';
 import { ExtractionEngine } from '../ai/ExtractionEngine.js';
@@ -40,9 +40,11 @@ export class WhatsAppService {
   private domainService: DomainService;
   private extractionEngine: ExtractionEngine;
   private verifyToken: string;
+  private db: any;
 
-  constructor(verifyToken = process.env.WHATSAPP_VERIFY_TOKEN || 'prop_crm_whatsapp_verify_token') {
-    this.domainService = new DomainService();
+  constructor(customDb = defaultDb, verifyToken = process.env.WHATSAPP_VERIFY_TOKEN || 'prop_crm_whatsapp_verify_token') {
+    this.db = customDb;
+    this.domainService = new DomainService(customDb);
     this.extractionEngine = new ExtractionEngine();
     this.verifyToken = verifyToken;
   }
@@ -60,6 +62,7 @@ export class WhatsAppService {
     messageText: string;
     externalMessageId?: string;
     rawPayload?: any;
+    organizationId?: string;
   }) {
     const externalId = params.externalMessageId || `wa_msg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
     const payload = params.rawPayload ? JSON.stringify(params.rawPayload) : JSON.stringify({
@@ -69,19 +72,20 @@ export class WhatsAppService {
     });
 
     // Idempotency check: Check if message externalId was already processed
-    const existingMsg = db.select().from(messages).where(eq(messages.externalId, externalId)).get();
+    const existingMsg = this.db.select().from(messages).where(eq(messages.externalId, externalId)).get();
     if (existingMsg) {
       return { status: 'DUPLICATE', externalId };
     }
 
     // 1. Run AI Extraction async/first
     const extractionResult = await this.extractionEngine.extract(params.messageText);
-    const confidence = extractionResult.overallConfidence ?? extractionResult.confidenceScore ?? 0.95;
+    const confidence = extractionResult.confidenceScore ?? 0.95;
 
     // 2. Perform DB operations inside synchronous SQLite transaction block
-    return db.transaction((tx: any) => {
+    return this.db.transaction((tx: any) => {
       // 1. Store Raw Message in source_records
       const [sourceRec] = tx.insert(sourceRecords).values({
+        organizationId: params.organizationId || null,
         sourceType: 'WHATSAPP',
         externalId: externalId,
         senderIdentifier: params.senderPhone,
@@ -92,12 +96,14 @@ export class WhatsAppService {
       const contact = this.domainService.upsertContact({
         phoneRaw: params.senderPhone,
         firstName: params.senderName || 'WhatsApp Contact',
+        organizationId: params.organizationId,
       }, tx);
 
-      const customer = this.domainService.ensureCustomerForContact(contact.id, 'TENANT', tx);
+      const customer = this.domainService.ensureCustomerForContact(contact.id, 'TENANT', params.organizationId, tx);
 
       // 3. Interaction & Message detail storage
       const [interaction] = tx.insert(interactions).values({
+        organizationId: params.organizationId || null,
         contactId: contact.id,
         customerId: customer.id,
         sourceRecordId: sourceRec.id,
@@ -121,6 +127,7 @@ export class WhatsAppService {
       if (extractionResult.requirement) {
         const reqData = extractionResult.requirement as any;
         [requirement] = tx.insert(requirements).values({
+          organizationId: params.organizationId || null,
           customerId: customer.id,
           intent: reqData.intent || 'RENT',
           propertyType: reqData.propertyType || 'APARTMENT',
@@ -150,6 +157,7 @@ export class WhatsAppService {
 
         // 7. Record Audit Log
         tx.insert(auditLogs).values({
+          organizationId: params.organizationId || null,
           tableName: 'requirements',
           recordId: requirement.id,
           action: 'INSERT',

@@ -1,25 +1,65 @@
 import { sqliteTable, text, integer, real, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
+// 0. organizations (Tenant boundary)
+export const organizations = sqliteTable('organizations', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  name: text('name').notNull(),
+  createdAt: text('created_at').notNull().default(sql`(CURRENT_TIMESTAMP)`),
+  updatedAt: text('updated_at').notNull().default(sql`(CURRENT_TIMESTAMP)`),
+});
+
 // 1. users
 export const users = sqliteTable('users', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text('organization_id').references(() => organizations.id, { onDelete: 'cascade' }),
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   fullName: text('full_name').notNull(),
-  role: text('role').notNull().default('AGENT'), // ADMIN, AGENT, MANAGER
+  role: text('role').notNull().default('BROKER'), // ADMIN, BROKER, STAFF, VIEWER
   isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+  lastLoginAt: text('last_login_at'),
   createdAt: text('created_at').notNull().default(sql`(CURRENT_TIMESTAMP)`),
   updatedAt: text('updated_at').notNull().default(sql`(CURRENT_TIMESTAMP)`),
 }, (table) => [
   uniqueIndex('idx_users_email').on(table.email),
+  index('idx_users_organization_id').on(table.organizationId),
+]);
+
+// 1b. sessions
+export const sessions = sqliteTable('sessions', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  token: text('token').notNull().unique(),
+  expiresAt: text('expires_at').notNull(),
+  createdAt: text('created_at').notNull().default(sql`(CURRENT_TIMESTAMP)`),
+}, (table) => [
+  uniqueIndex('idx_sessions_token').on(table.token),
+  index('idx_sessions_user_id').on(table.userId),
+]);
+
+// 1c. invitations
+export const invitations = sqliteTable('invitations', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  email: text('email').notNull(),
+  role: text('role').notNull().default('BROKER'), // ADMIN, BROKER, STAFF, VIEWER
+  token: text('token').notNull().unique(),
+  status: text('status').notNull().default('PENDING'), // PENDING, ACCEPTED, EXPIRED
+  expiresAt: text('expires_at').notNull(),
+  invitedBy: text('invited_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').notNull().default(sql`(CURRENT_TIMESTAMP)`),
+}, (table) => [
+  uniqueIndex('idx_invitations_token').on(table.token),
+  index('idx_invitations_org_email').on(table.organizationId, table.email),
 ]);
 
 // 2. contacts (Canonical person record)
 export const contacts = sqliteTable('contacts', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text('organization_id').references(() => organizations.id, { onDelete: 'cascade' }),
   phoneRaw: text('phone_raw').notNull(),
-  phoneNormalized: text('phone_normalized').notNull().unique(), // E.164 format, unique constraint
+  phoneNormalized: text('phone_normalized').notNull(), // E.164 format
   firstName: text('first_name'),
   lastName: text('last_name'),
   email: text('email'),
@@ -29,12 +69,15 @@ export const contacts = sqliteTable('contacts', {
   createdAt: text('created_at').notNull().default(sql`(CURRENT_TIMESTAMP)`),
   updatedAt: text('updated_at').notNull().default(sql`(CURRENT_TIMESTAMP)`),
 }, (table) => [
-  uniqueIndex('idx_contacts_phone_normalized').on(table.phoneNormalized),
+  index('idx_contacts_phone_normalized').on(table.phoneNormalized),
+  index('idx_contacts_org_id').on(table.organizationId),
+  uniqueIndex('idx_contacts_org_phone').on(table.organizationId, table.phoneNormalized),
 ]);
 
 // 3. customers (Role table referencing canonical contact)
 export const customers = sqliteTable('customers', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text('organization_id').references(() => organizations.id, { onDelete: 'cascade' }),
   contactId: text('contact_id').notNull().references(() => contacts.id, { onDelete: 'cascade' }),
   customerType: text('customer_type').notNull().default('TENANT'), // TENANT, BUYER, BOTH
   status: text('status').notNull().default('ACTIVE'), // ACTIVE, INACTIVE, BLACKLISTED
@@ -43,11 +86,13 @@ export const customers = sqliteTable('customers', {
   updatedAt: text('updated_at').notNull().default(sql`(CURRENT_TIMESTAMP)`),
 }, (table) => [
   index('idx_customers_contact_id').on(table.contactId),
+  index('idx_customers_org_id').on(table.organizationId),
 ]);
 
 // 4. owners (Role table referencing canonical contact)
 export const owners = sqliteTable('owners', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text('organization_id').references(() => organizations.id, { onDelete: 'cascade' }),
   contactId: text('contact_id').notNull().references(() => contacts.id, { onDelete: 'cascade' }),
   taxId: text('tax_id'),
   companyName: text('company_name'),
@@ -56,11 +101,13 @@ export const owners = sqliteTable('owners', {
   updatedAt: text('updated_at').notNull().default(sql`(CURRENT_TIMESTAMP)`),
 }, (table) => [
   index('idx_owners_contact_id').on(table.contactId),
+  index('idx_owners_org_id').on(table.organizationId),
 ]);
 
 // 5. properties (Belongs to owner/contact)
 export const properties = sqliteTable('properties', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text('organization_id').references(() => organizations.id, { onDelete: 'cascade' }),
   ownerId: text('owner_id').notNull().references(() => owners.id, { onDelete: 'restrict' }),
   title: text('title').notNull(),
   description: text('description'),
@@ -86,6 +133,7 @@ export const properties = sqliteTable('properties', {
   updatedAt: text('updated_at').notNull().default(sql`(CURRENT_TIMESTAMP)`),
 }, (table) => [
   index('idx_properties_owner_id').on(table.ownerId),
+  index('idx_properties_org_id').on(table.organizationId),
   index('idx_properties_status').on(table.status),
   index('idx_properties_city_type').on(table.city, table.propertyType),
 ]);
@@ -106,6 +154,7 @@ export const propertyMedia = sqliteTable('property_media', {
 // 7. requirements (Belongs to customer/contact)
 export const requirements = sqliteTable('requirements', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text('organization_id').references(() => organizations.id, { onDelete: 'cascade' }),
   customerId: text('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
   intent: text('intent').notNull(), // RENT, BUY
   propertyType: text('property_type'), // APARTMENT, VILLA, STUDIO, COMMERCIAL
@@ -128,11 +177,13 @@ export const requirements = sqliteTable('requirements', {
   updatedAt: text('updated_at').notNull().default(sql`(CURRENT_TIMESTAMP)`),
 }, (table) => [
   index('idx_requirements_customer_id').on(table.customerId),
+  index('idx_requirements_org_id').on(table.organizationId),
 ]);
 
 // 8. leads (Full Phase 3 pipeline)
 export const leads = sqliteTable('leads', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text('organization_id').references(() => organizations.id, { onDelete: 'cascade' }),
   customerId: text('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
   requirementId: text('requirement_id').references(() => requirements.id, { onDelete: 'set null' }),
   matchedPropertyId: text('matched_property_id').references(() => properties.id, { onDelete: 'set null' }),
@@ -146,12 +197,14 @@ export const leads = sqliteTable('leads', {
   updatedAt: text('updated_at').notNull().default(sql`(CURRENT_TIMESTAMP)`),
 }, (table) => [
   index('idx_leads_customer_id').on(table.customerId),
+  index('idx_leads_org_id').on(table.organizationId),
   index('idx_leads_stage').on(table.stage),
 ]);
 
 // 9. source_records (Preserves raw incoming metadata)
 export const sourceRecords = sqliteTable('source_records', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text('organization_id').references(() => organizations.id, { onDelete: 'cascade' }),
   sourceType: text('source_type').notNull(), // WHATSAPP, CALL_LOG, RECORDING, MANUAL
   externalId: text('external_id'),
   senderIdentifier: text('sender_identifier'),
@@ -162,11 +215,13 @@ export const sourceRecords = sqliteTable('source_records', {
 }, (table) => [
   index('idx_source_records_type').on(table.sourceType),
   index('idx_source_records_external_id').on(table.externalId),
+  index('idx_source_records_org_id').on(table.organizationId),
 ]);
 
 // 10. interactions (Unified ledger for calls, messages, manual notes)
 export const interactions = sqliteTable('interactions', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text('organization_id').references(() => organizations.id, { onDelete: 'cascade' }),
   contactId: text('contact_id').notNull().references(() => contacts.id, { onDelete: 'cascade' }),
   customerId: text('customer_id').references(() => customers.id, { onDelete: 'set null' }),
   leadId: text('lead_id').references(() => leads.id, { onDelete: 'set null' }),
@@ -181,6 +236,7 @@ export const interactions = sqliteTable('interactions', {
   index('idx_interactions_contact_id').on(table.contactId),
   index('idx_interactions_customer_id').on(table.customerId),
   index('idx_interactions_lead_id').on(table.leadId),
+  index('idx_interactions_org_id').on(table.organizationId),
 ]);
 
 // 11. messages (Detail for message interaction)
@@ -221,6 +277,7 @@ export const calls = sqliteTable('calls', {
 // 13. visits (Property viewings)
 export const visits = sqliteTable('visits', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text('organization_id').references(() => organizations.id, { onDelete: 'cascade' }),
   propertyId: text('property_id').notNull().references(() => properties.id, { onDelete: 'restrict' }),
   customerId: text('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
   leadId: text('lead_id').references(() => leads.id, { onDelete: 'set null' }),
@@ -234,11 +291,13 @@ export const visits = sqliteTable('visits', {
 }, (table) => [
   index('idx_visits_property_id').on(table.propertyId),
   index('idx_visits_customer_id').on(table.customerId),
+  index('idx_visits_org_id').on(table.organizationId),
 ]);
 
 // 14. transactions (Leases or Sales)
 export const transactions = sqliteTable('transactions', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text('organization_id').references(() => organizations.id, { onDelete: 'cascade' }),
   propertyId: text('property_id').notNull().references(() => properties.id, { onDelete: 'restrict' }),
   customerId: text('customer_id').notNull().references(() => customers.id, { onDelete: 'restrict' }),
   ownerId: text('owner_id').notNull().references(() => owners.id, { onDelete: 'restrict' }),
@@ -256,11 +315,13 @@ export const transactions = sqliteTable('transactions', {
   index('idx_transactions_property_id').on(table.propertyId),
   index('idx_transactions_customer_id').on(table.customerId),
   index('idx_transactions_owner_id').on(table.ownerId),
+  index('idx_transactions_org_id').on(table.organizationId),
 ]);
 
 // 15. followups (Tasks & Reminders)
 export const followups = sqliteTable('followups', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text('organization_id').references(() => organizations.id, { onDelete: 'cascade' }),
   leadId: text('lead_id').notNull().references(() => leads.id, { onDelete: 'cascade' }),
   customerId: text('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
   assignedUserId: text('assigned_user_id').references(() => users.id, { onDelete: 'set null' }),
@@ -273,6 +334,7 @@ export const followups = sqliteTable('followups', {
 }, (table) => [
   index('idx_followups_due_date').on(table.dueDate, table.status),
   index('idx_followups_lead_id').on(table.leadId),
+  index('idx_followups_org_id').on(table.organizationId),
 ]);
 
 // 16. extraction_runs (Tracks AI model extraction operations & confidence scores)
@@ -292,13 +354,15 @@ export const extractionRuns = sqliteTable('extraction_runs', {
 // 17. audit_logs (System change history)
 export const auditLogs = sqliteTable('audit_logs', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  organizationId: text('organization_id').references(() => organizations.id, { onDelete: 'set null' }),
   tableName: text('table_name').notNull(),
   recordId: text('record_id').notNull(),
-  action: text('action').notNull(), // INSERT, UPDATE, DELETE
+  action: text('action').notNull(), // INSERT, UPDATE, DELETE, LOGIN_SUCCESS, LOGIN_FAILURE, LOGOUT, INVITATION_CREATED, INVITATION_ACCEPTED
   performedBy: text('performed_by').notNull(), // USER_ID or SYSTEM_AI
   oldValues: text('old_values'), // JSON string
   newValues: text('new_values'), // JSON string
   createdAt: text('created_at').notNull().default(sql`(CURRENT_TIMESTAMP)`),
 }, (table) => [
   index('idx_audit_logs_record').on(table.tableName, table.recordId),
+  index('idx_audit_logs_org_id').on(table.organizationId),
 ]);

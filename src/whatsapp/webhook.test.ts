@@ -1,12 +1,20 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../app.js';
-import { db } from '../db/index.js';
-import { sourceRecords, requirements, contacts, messages, interactions } from '../db/schema.js';
+import { createDbConnection } from '../db/index.js';
+import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
+import { sourceRecords, requirements } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 
 describe('WhatsApp Integration Webhook API', () => {
-  const app = createApp();
+  let app: any;
+  let testDbConn: any;
+
+  beforeEach(() => {
+    testDbConn = createDbConnection(':memory:');
+    migrate(testDbConn.db, { migrationsFolder: './drizzle' });
+    app = createApp(testDbConn.db);
+  });
 
   it('GET /api/whatsapp/webhook - should verify Meta challenge token', async () => {
     const res = await request(app)
@@ -65,11 +73,11 @@ describe('WhatsApp Integration Webhook API', () => {
     expect(result.requirement.preferredLocations).toContain('Whitefield');
 
     // Verify database queries
-    const storedSource = await db.select().from(sourceRecords).where(eq(sourceRecords.id, result.sourceRecord.id));
+    const storedSource = await testDbConn.db.select().from(sourceRecords).where(eq(sourceRecords.id, result.sourceRecord.id));
     expect(storedSource.length).toBe(1);
     expect(storedSource[0].payload).toContain(rawMessageText);
 
-    const storedReq = await db.select().from(requirements).where(eq(requirements.id, result.requirement.id));
+    const storedReq = await testDbConn.db.select().from(requirements).where(eq(requirements.id, result.requirement.id));
     expect(storedReq.length).toBe(1);
     expect(storedReq[0].sourceRecordId).toBe(result.sourceRecord.id);
   });
